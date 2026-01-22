@@ -1,0 +1,14 @@
+# Entorno virtual
+venv/
+tfm_env/
+
+# Carpetas de figuras, logs, etc
+logs/
+data/
+figs/
+
+# Python cache
+__pycache__/
+
+# IDE / Editor
+.vscode/
