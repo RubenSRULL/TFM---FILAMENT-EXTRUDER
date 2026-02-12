@@ -1,87 +1,200 @@
-body {
-  margin: 0;
-  background-color: #f2f4f7;
-  font-family: "Segoe UI", Arial, sans-serif;
-}
-
+/* Estilos generales */
 .app-container {
   padding: 16px 24px;
+  margin: 0;
 }
 
-/* Contenedor general de tabs */
-#system-tabs {
-  background: transparent;
-}
 
-/* Barra de pestañas */
-.tab-container {
-  border-bottom: 1px solid #dcdfe4;
-}
-
-/* Tab individual */
-.tab {
-  background-color: #e9ecef;
-  padding: 10px 20px;
-  font-weight: 600;
-  border: 1px solid #dcdfe4;
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  margin-right: 6px;
-  color: #555;
-}
-
-/* Hover */
-.tab:hover {
-  background-color: #dee2e6;
-}
-
-/* Tab seleccionada */
-.tab--selected {
-  background-color: #ffffff;
-  color: #1976d2;
-  border-bottom: 2px solid #ffffff;
-}
-
+/* Estilos para las pestañas */
 .render_tab {
   background: #ffffff;
   border: 1px solid #dcdfe4;
   border-radius: 0 6px 6px 6px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
   padding: 20px;
-  min-height: 500px;
+  min-height: 100px;
+  margin: 0;
 }
 
+
+/* Estilos para las tarjetas */
 .card {
   background: #ffffff;
   border: 1px solid #dcdfe4;
   border-radius: 6px;
   padding: 16px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-  margin-bottom: 16px;
+  margin: 0;
 }
 
-.card-title {
-  font-weight: 600;
-  margin-bottom: 12px;
+/* Estilos específicos para la pestaña de Monitoreo */
+.monitoring-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 16px;
+}
+.estado {
+  grid-column: 1 / 3;   /* ancho completo */
 }
 
-.status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
+.datos {
+  grid-column: 1 / 2;   /* izquierda 50% */
 }
 
-.status-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
+.temperatura {
+  grid-column: 2 / 3;   /* derecha 50% */
 }
 
-.status-ok {
-  background-color: #4caf50;
+.filamento {
+  grid-column: 1 / 2;   /* izquierda 50% */
 }
 
-.status-error {
-  background-color: #e53935;
+.diametro {
+  grid-column: 2 / 3;   /* derecha 50% */
+}
+
+.alertas {
+  grid-column: 1 / 3;   /* ancho completo */
+}
+
+
+/* Estilos específicos para la pestaña de Automatica */
+.monitoring-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 16px;
+}
+.estado {
+  grid-column: 1 / 3;   /* ancho completo */
+}
+
+.datos {
+  grid-column: 1 / 2;   /* izquierda 50% */
+}
+
+.temperatura {
+  grid-column: 2 / 3;   /* derecha 50% */
+}
+
+.filamento {
+  grid-column: 1 / 2;   /* izquierda 50% */
+}
+
+.diametro {
+  grid-column: 2 / 3;   /* derecha 50% */
+}
+
+.alertas {
+  grid-column: 1 / 3;   /* ancho completo */
+}
+
+
+/* Estilos específicos para la pestaña de Auto */
+.automatic-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: auto auto auto;
+  gap: 16px;
+}
+
+.datos_automatica {
+  grid-column: 1 / 3;   /* izquierda 50% */
+}
+
+.diametro_automatica {
+  grid-column: 1 / 2;  /* izquierda */
+}
+
+.temperatura_automatica {
+  grid-column: 2 / 3;  /* derecha */
+}
+
+.filamento_automatica {
+  grid-column: 1 / 3;   /* izquierda 50% */
+}
+
+
+/* Estilos específicos para la pestaña de Manual */
+.manual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: auto auto auto;
+  gap: 16px;
+}
+
+.datos_manual {
+  grid-column: 1 / 3;   /* izquierda 50% */
+}
+
+.control_manual {
+  grid-column: 1 / 3;   /* izquierda 50% */
+}
+
+
+/* Estilos específicos para la pestaña de Alarmas/Historial */
+.alarms-history-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: auto auto auto;
+  gap: 16px;
+}
+
+.datos_alarms_history {
+  grid-column: 1 / 3;   /* izquierda 50% */
+}
+
+.datos_recient_alarms {
+  grid-column: 1 / 3;   /* izquierda 50% */
+}
+
+
+/* Estilo slider */
+.temp-slider .rc-slider-rail {
+    height: 12px;
+    border-radius: 6px;
+
+    background: linear-gradient(
+        to right,
+        #3498db 0%,
+        #3498db 20%,
+
+        #2ecc71 20%,
+        #2ecc71 40%,
+
+        #f1c40f 40%,
+        #f1c40f 53.3%,
+
+        #e67e22 53.3%,
+        #e67e22 66.6%,
+
+        #e74c3c 66.6%,
+        #e74c3c 80%,
+
+        #c0392b 80%,
+        #c0392b 100%
+    );
+}
+
+
+/* Estilo slider de velocidad */
+.speed-slider .rc-slider-rail {
+    height: 12px;
+    border-radius: 6px;
+
+    background: linear-gradient(
+        to right,
+        #3498db 0%,     
+        #3498db 20%,
+
+        #2ecc71 20%,    
+        #2ecc71 50%,
+
+        #f1c40f 50%,   
+        #f1c40f 80%,
+
+        #e74c3c 80%,    
+        #e74c3c 100%
+    );
 }
