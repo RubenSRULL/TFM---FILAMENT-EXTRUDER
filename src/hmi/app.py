@@ -14,7 +14,6 @@ app.layout = [
         dcc.Store(id='store_manual', storage_type='session'),
         dcc.Store(id='store_alarmas', storage_type='session'),
         dcc.Store(id='store_configuracion', storage_type='session'),
-
         dcc.Tabs(id='system-tabs',value='system_tab', children=[
             dcc.Tab(label='Monitoreo', value='monitoring'),
             dcc.Tab(label='Automático', value='automatic'),
@@ -24,8 +23,33 @@ app.layout = [
         ]
     ),
     html.Div(id='tab_content', className='render_tab')
-    ])
+    ], className='app-container')
 ]
+
+
+# MONITOREO LAYOUT
+def monitoring_layout():
+    return html.Div('Contenido de Monitoreo', className='card')
+
+
+# MODO AUTOMATICO LAYOUT
+def automatic_layout():
+    return html.Div('Contenido de Automático', className='card')
+
+
+# MODO MANUAL LAYOUT
+def manual_layout():
+    return html.Div('Contenido de Manual', className='card')
+
+
+# ALARMAS/HISTORIAL LAYOUT
+def alarms_history_layout():
+    return html.Div('Contenido de Alarmas/Historial', className='card')
+
+
+# CONFIGURACIÓN LAYOUT
+def settings_layout():
+    return html.Div('Contenido de Configuración', className='card')
 
 
 # CALLBACKS
@@ -35,19 +59,24 @@ app.layout = [
 )
 def render_tab_content(tab):
     if tab == 'monitoring':
-        return html.Div('Contenido de Monitoreo')
+        layout = monitoring_layout()
+        return layout
     
     elif tab == 'automatic':
-        return html.Div('Contenido de Automático')
+        layout = automatic_layout()
+        return layout
     
     elif tab == 'manual':
-        return html.Div('Contenido de Manual')
+        layout = manual_layout()
+        return layout
     
     elif tab == 'alarms_history':
-        return html.Div('Contenido de Alarmas/Historial')
+        layout = alarms_history_layout()
+        return layout
     
     elif tab == 'settings':
-        return html.Div('Contenido de Configuración')
+        layout = settings_layout()
+        return layout
     
     return html.Div('Seleccione una pestaña válida')
 

@@ -1,0 +1,87 @@
+body {
+  margin: 0;
+  background-color: #f2f4f7;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.app-container {
+  padding: 16px 24px;
+}
+
+/* Contenedor general de tabs */
+#system-tabs {
+  background: transparent;
+}
+
+/* Barra de pestañas */
+.tab-container {
+  border-bottom: 1px solid #dcdfe4;
+}
+
+/* Tab individual */
+.tab {
+  background-color: #e9ecef;
+  padding: 10px 20px;
+  font-weight: 600;
+  border: 1px solid #dcdfe4;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  margin-right: 6px;
+  color: #555;
+}
+
+/* Hover */
+.tab:hover {
+  background-color: #dee2e6;
+}
+
+/* Tab seleccionada */
+.tab--selected {
+  background-color: #ffffff;
+  color: #1976d2;
+  border-bottom: 2px solid #ffffff;
+}
+
+.render_tab {
+  background: #ffffff;
+  border: 1px solid #dcdfe4;
+  border-radius: 0 6px 6px 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  padding: 20px;
+  min-height: 500px;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #dcdfe4;
+  border-radius: 6px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.status-ok {
+  background-color: #4caf50;
+}
+
+.status-error {
+  background-color: #e53935;
+}
