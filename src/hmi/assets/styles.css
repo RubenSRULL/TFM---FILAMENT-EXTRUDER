@@ -15,6 +15,7 @@
     border: 1px solid #ccc;
     border-radius: 5px;
     background-color: #f9f9f9;
+    height: 250px;
 }
 
 /* ==== Estilos para el flujo de fases === */
@@ -49,4 +50,71 @@
     font-size: 20px;
     color: #666;
     margin: 0 5px;
+}
+
+.phase-container {
+    position: relative;
+    height: 250px;
+    padding-bottom: 30 px;
+}
+
+.button-container-fixed {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+.phase-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+}
+
+.auto-config {
+    flex: 1;
+}
+
+.config-row {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    align-items: flex-end;
+}
+
+.config-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.material-dropdown {
+    width: 200px;
+}
+
+.diameter-input {
+    width: 120px;
+}
+
+/* Button container */
+.switch-container {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+/* Graphs container */
+.graphs-container {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+}
+
+.graph {
+    flex: 1;
 }
