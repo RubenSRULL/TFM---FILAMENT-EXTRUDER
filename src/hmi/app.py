@@ -9,10 +9,14 @@ from dash import Dash, html, dcc, callback, Output, Input, State
 import dash_daq as daq
 import plotly.express as px
 import pandas as pd
+from src.backend.vision import Vision
 
 
-# ===== APP DASH ===== #
+# ====================== #
+# ===== INSTANCIAS ===== #
+# ====================== #
 app = Dash(__name__, suppress_callback_exceptions=True)
+vision = Vision()
 
 
 # ================== #
@@ -73,20 +77,39 @@ def monitoring_layout():
         ], className='container'),
         html.H3('Diámetro del filamento'),
         html.Div([
+            html.Div(id='diameter-display', children='-- mm', style={'fontSize': '24px', 'fontWeight': 'bold', 'textAlign': 'center'}),
+            dcc.Interval(id="interval-diameter", interval=1000, n_intervals=0)
         ], className='container'),
         html.H3('Imagen del filamento'),
         html.Div([
+            html.Img(id='filament-image', style={'width': '100%', 'maxWidth': '600px', 'height': 'auto', 'objectFit': 'contain'}),         
+            dcc.Interval(id="interval-camera", interval=200, n_intervals=0)
         ], className='container'),
         html.H3('Alarmas activas'),
         html.Div([
         ], className='container')
     ])
 
-
 # ================================ #
 # ===== MONITORING CALLBACKS ===== #
 # ================================ #
+@app.callback(
+    Output('filament-image', 'src'),
+    Input('interval-camera', 'n_intervals')
+)
+def update_filament_image(n):
+    if vision.picam2 is None:
+        return dash.no_update
 
+    try:
+        image = vision.get_processed_image_web()
+        if image is None:
+            return dash.no_update
+        return f"data:image/jpeg;base64,{image}"
+        
+    except Exception as e:
+        print(f"Error capturando imagen: {e}")
+        return dash.no_update
 
 # ================================== #
 # ===== MODO AUTOMATICO LAYOUT ===== #
@@ -403,4 +426,4 @@ def alarms_history_layout():
 # ===== MAIN ===== #
 # ================ #
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', use_reloader=False)
