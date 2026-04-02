@@ -1,5 +1,5 @@
 # AUTOR: Rubén Sahuquillo Redondo
-
+# Master de Informatica Industrial y Robotica - Universidad de La Laguna
 
 # ===================== #
 # ===== LIBRERIAS ===== #
@@ -9,29 +9,21 @@ from dash import Dash, html, dcc, callback, Output, Input, State
 import dash_daq as daq
 import plotly.express as px
 import pandas as pd
-from src.backend.vision import Vision
 
 
-# ====================== #
-# ===== INSTANCIAS ===== #
-# ====================== #
+# ===== APP DASH ===== #
 app = Dash(__name__, suppress_callback_exceptions=True)
-vision = Vision()
 
 
 # ================== #
 # ===== LAYOUT ===== #
 # ================== #
 app.layout = html.Div([
-    dcc.Store(id='store_monitoreo', storage_type='session'),
     dcc.Store(id='store_automatico', storage_type='session'),
     dcc.Store(id='store_manual', storage_type='session'),
-    dcc.Store(id='store_alarmas', storage_type='session'),
-    dcc.Tabs(id='system-tabs', value='monitoring', children=[
-        dcc.Tab(label='Monitoreo', value='monitoring'),
+    dcc.Tabs(id='system-tabs', value='automatic', children=[
         dcc.Tab(label='Automático', value='automatic'),
         dcc.Tab(label='Manual', value='manual'),
-        dcc.Tab(label='Alarmas/Historial', value='alarms_history'),
     ], className='dash-tabs'),
     html.Div(id='tab_content', className='tab-content')
 ])
@@ -43,73 +35,15 @@ app.layout = html.Div([
     Output('tab_content', 'children'),
     Input('system-tabs', 'value')
 )
-def render_tab_content(tab):
-    if tab == 'monitoring':
-        layout = monitoring_layout()
-        return layout
-    
-    elif tab == 'automatic':
+def render_tab_content(tab):    
+    if tab == 'automatic':
         layout = automatic_layout()
         return layout
     
     elif tab == 'manual':
         layout = manual_layout()
         return layout
-    
-    elif tab == 'alarms_history':
-        layout = alarms_history_layout()
-        return layout
 
-
-# ============================= #
-# ===== MONITORING LAYOUT ===== #
-# ============================= #
-def monitoring_layout():
-    return html.Div([
-        html.H3('Estado general del sistema'),
-        html.Div([
-        ], className='container'),
-        html.H3('Datos del proceso'),
-        html.Div([
-        ], className='container'),
-        html.H3('Variables del sistema'),
-        html.Div([
-        ], className='container'),
-        html.H3('Diámetro del filamento'),
-        html.Div([
-            html.Div(id='diameter-display', children='-- mm', style={'fontSize': '24px', 'fontWeight': 'bold', 'textAlign': 'center'}),
-            dcc.Interval(id="interval-diameter", interval=1000, n_intervals=0)
-        ], className='container'),
-        html.H3('Imagen del filamento'),
-        html.Div([
-            html.Img(id='filament-image', style={'width': '100%', 'maxWidth': '600px', 'height': 'auto', 'objectFit': 'contain'}),         
-            dcc.Interval(id="interval-camera", interval=200, n_intervals=0)
-        ], className='container'),
-        html.H3('Alarmas activas'),
-        html.Div([
-        ], className='container')
-    ])
-
-# ================================ #
-# ===== MONITORING CALLBACKS ===== #
-# ================================ #
-@app.callback(
-    Output('filament-image', 'src'),
-    Input('interval-camera', 'n_intervals')
-)
-def update_filament_image(n):
-    if vision.picam2 is None:
-        return dash.no_update
-
-    try:
-        image = vision.get_processed_image_web()
-        if image is None:
-            return dash.no_update
-        return f"data:image/jpeg;base64,{image}"
-        
-    except Exception as e:
-        print(f"Error capturando imagen: {e}")
-        return dash.no_update
 
 # ================================== #
 # ===== MODO AUTOMATICO LAYOUT ===== #
@@ -121,19 +55,16 @@ def automatic_layout():
     return html.Div([
         dcc.Store(id='auto_phase', data=0),
         dcc.Store(id='store_auto_material', data='pla'),
-
         html.H3('Fases del proceso'),
         html.Div([
             html.Div(id='phase_indicator', className='phase-indicator-container'),
             html.Div(id='phase_content', className='phase-content-container'),
-
             html.Div([
                 html.Button("Anterior", id="btn_prev_phase", n_clicks=0, className="phase-btn"),
                 html.Button("Siguiente", id="btn_next_phase", n_clicks=0, className="phase-btn")
             ], className='button-container-fixed')
 
         ], className='container phase-container'),
-
         html.H3('Gráficas del proceso'),
         html.Div([
                 dcc.Graph(id='diameter-graph', figure=px.line(x=[0], y=[0], title='Diámetro del filamento'), className='graph'),
@@ -181,18 +112,13 @@ def update_phase(next_clicks, prev_clicks, current_phase):
         :return: nueva fase actualizada
     """
     ctx = dash.callback_context
-
     if not ctx.triggered:
         return current_phase
-
     button = ctx.triggered[0]['prop_id'].split('.')[0]
-
     if button == "btn_next_phase":
         return min(current_phase + 1, 4)
-
     elif button == "btn_prev_phase":
         return max(current_phase - 1, 0)
-
     return current_phase
 
 
@@ -211,10 +137,8 @@ def update_phase_indicator(phase):
     for i, name in enumerate(phases):
         if i < phase:
             color = "#4CAF50"
-
         elif i == phase:
             color = "#2196F3"
-
         else:
             color = "#BDBDBD"
 
@@ -245,7 +169,7 @@ def update_phase_content(phase, material):
             html.Div([
                 html.Div([
                     html.Label("Material"),
-                    dcc.Dropdown(
+                    dcc.Dropdown(id='auto_material',value='pla',
                         options=[
                             {'label': 'PLA', 'value': 'pla'},
                             {'label': 'ABS', 'value': 'abs'},
@@ -255,10 +179,7 @@ def update_phase_content(phase, material):
                             {'label': 'LDPE', 'value': 'ldpe'},
                             {'label': 'HDPE', 'value': 'hdpe'},
                             {'label': 'PP', 'value': 'pp'}
-                        ],
-                        id='auto_material',
-                        value='pla',
-                        className='material-dropdown'
+                        ],className='material-dropdown'
                     ),
                 ], className="config-item"),
                 html.Div([
@@ -275,12 +196,7 @@ def update_phase_content(phase, material):
         return html.Div([
             html.H4("Calentamiento extrusora"),
             html.Div([
-                dcc.Slider(
-                    id = 'auto_temp_slider',
-                    min=180,
-                    max=220,
-                    step=1,
-                    value=200,
+                dcc.Slider(id = 'auto_temp_slider',min=180,max=220,step=1,value=200,
                     marks={
                         180: '180',
                         200: '200',
@@ -341,11 +257,7 @@ def manual_layout():
             ),
             html.Label('Velocidad extrusión (cm/s)'),
             html.Div(
-                dcc.Slider(
-                    min=0,
-                    max=10,
-                    step=0.1,
-                    value=0,
+                dcc.Slider(min=0,max=10,step=0.1,value=0,
                     marks={
                         0: '0',
                         2: '2',
@@ -362,11 +274,7 @@ def manual_layout():
             ),
             html.Label('Velocidad enrolladora (cm/s)'),
             html.Div(
-                dcc.Slider(
-                    min=0,
-                    max=10,
-                    step=0.1,
-                    value=0,
+                dcc.Slider(min=0,max=10,step=0.1,value=0,
                     marks={
                         0: '0',
                         2: '2',
@@ -383,13 +291,7 @@ def manual_layout():
             ),
 
             html.Div([
-                daq.BooleanSwitch(
-                    id='switch_manual',
-                    on=False,
-                    label="OFF / ON",
-                    labelPosition="top",
-                    color="#28a745"
-                )
+                daq.BooleanSwitch(id='switch_manual',on=False,label="OFF / ON",labelPosition="top",color="#28a745")
             ], className='switch-container')
 
         ], className='container'),
@@ -406,24 +308,9 @@ def manual_layout():
 # ============================ #
 pass
 
-# ==================================== #
-# ===== ALARMAS/HISTORIAL LAYOUT ===== #
-# ==================================== #
-def alarms_history_layout():
-    return html.Div([
-        html.Div([
-            html.Label('Alarmas activas'),
-            html.Div(id='active-alarms', children=[])
-        ], className='container'),
-        html.Div([
-            html.Label('Alarmas recientes'),
-            html.Div(id='recent-alarms', children=[])
-        ], className='container')
-    ])
-
 
 # ================ #
 # ===== MAIN ===== #
 # ================ #
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', use_reloader=False)
+    app.run(debug=True)
