@@ -1,316 +1,421 @@
-# AUTOR: Rubén Sahuquillo Redondo
-# Master de Informatica Industrial y Robotica - Universidad de La Laguna
-
-# ===================== #
-# ===== LIBRERIAS ===== #
-# ===================== #
-import dash
-from dash import Dash, html, dcc, callback, Output, Input, State
-import dash_daq as daq
-import plotly.express as px
-import pandas as pd
+from dash import Dash, html, dcc, callback, Output, Input, State, ctx
+from datetime import datetime
+from flask import Flask, Response
+from picamera2 import Picamera2
+import cv2
+import time
+from gpiozero import LED
 
 
-# ===== APP DASH ===== #
-app = Dash(__name__, suppress_callback_exceptions=True)
-
-
-# ================== #
-# ===== LAYOUT ===== #
-# ================== #
-app.layout = html.Div([
-    dcc.Store(id='store_automatico', storage_type='session'),
-    dcc.Store(id='store_manual', storage_type='session'),
-    dcc.Tabs(id='system-tabs', value='automatic', children=[
-        dcc.Tab(label='Automático', value='automatic'),
-        dcc.Tab(label='Manual', value='manual'),
-    ], className='dash-tabs'),
-    html.Div(id='tab_content', className='tab-content')
-])
-
-# ========================= #
-# ===== TAB CALLBACKS ===== #
-# ========================= #
-@callback(
-    Output('tab_content', 'children'),
-    Input('system-tabs', 'value')
+# 1. Configuración de la Cámara
+picam2 = Picamera2()
+video_config = picam2.create_video_configuration(
+    main={"size": (1280, 720), "format": "RGB888"},
+    controls={
+        "AeEnable": True,
+        "AwbEnable": True,
+        "Brightness": 0.0,
+        "Contrast": 1.0,
+        "Sharpness": 1.0,
+        "Saturation": 1.0
+    }
 )
-def render_tab_content(tab):    
-    if tab == 'automatic':
-        layout = automatic_layout()
-        return layout
-    
-    elif tab == 'manual':
-        layout = manual_layout()
-        return layout
+picam2.configure(video_config)
+picam2.start()
+time.sleep(2)
 
-
-# ================================== #
-# ===== MODO AUTOMATICO LAYOUT ===== #
-# ================================== #
-def automatic_layout():
-    """
-    Layout para el modo automático, con fases y gráficos de datos en tiempo real
-    """
-    return html.Div([
-        dcc.Store(id='auto_phase', data=0),
-        dcc.Store(id='store_auto_material', data='pla'),
-        html.H3('Fases del proceso'),
-        html.Div([
-            html.Div(id='phase_indicator', className='phase-indicator-container'),
-            html.Div(id='phase_content', className='phase-content-container'),
-            html.Div([
-                html.Button("Anterior", id="btn_prev_phase", n_clicks=0, className="phase-btn"),
-                html.Button("Siguiente", id="btn_next_phase", n_clicks=0, className="phase-btn")
-            ], className='button-container-fixed')
-
-        ], className='container phase-container'),
-        html.H3('Gráficas del proceso'),
-        html.Div([
-                dcc.Graph(id='diameter-graph', figure=px.line(x=[0], y=[0], title='Diámetro del filamento'), className='graph'),
-                dcc.Graph(id='temperature-graph', figure=px.line(x=[0], y=[0], title='Variables extrusora'), className='graph')
-        ], className='graphs-container'),
-    ])
+# Generador de Frames (IA)
+def generate_frames():
+    while True:
+        frame = picam2.capture_array()
+        # Convertimos de RGB (Picamera2) a BGR para OpenCV
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        _, buffer = cv2.imencode('.jpg', frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
         
-
-# ================================ #
-# ===== CALLBACKS AUTOMATICO ===== #
-# ================================ #
-@callback(
-    Output('store_auto_material', 'data'),
-    Input('auto_material', 'value'),
-    prevent_initial_call=True
-)
-def guardar_material(material):
-    return material
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
 
-@callback(
-    Output("btn_prev_phase", "style"),
-    Output("btn_next_phase", "style"),
-    Input("auto_phase", "data")
-)
-def update_buttons_visibility(phase):
-    prev_style = {"display": "none"} if phase == 0 else {}
-    next_style = {"display": "none"} if phase == 4 else {}
-    return prev_style, next_style
+app = Dash(__name__, suppress_callback_exceptions=True)
+server = app.server
+laser = LED(4, initial_value=False)
 
-
-# --- Callback para controlar el avance entre fases del proceso automático --- #
-@callback(
-    Output('auto_phase', 'data'),
-    Input('btn_next_phase', 'n_clicks'),
-    Input('btn_prev_phase', 'n_clicks'),
-    Input('auto_phase', 'data'),
-)
-def update_phase(next_clicks, prev_clicks, current_phase):
-    """
-    Callback para actualizar la fase del proceso automático. Controla el avance y retroceso entre fases.
-        :param next_clicks: número de clicks en el botón "Siguiente"
-        :param prev_clicks: número de clicks en el botón "Anterior"
-        :param current_phase: fase actual del proceso
-        :return: nueva fase actualizada
-    """
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return current_phase
-    button = ctx.triggered[0]['prop_id'].split('.')[0]
-    if button == "btn_next_phase":
-        return min(current_phase + 1, 4)
-    elif button == "btn_prev_phase":
-        return max(current_phase - 1, 0)
-    return current_phase
-
-
-# --- Callback para actualizar el indicador de fases en el modo automático --- #
-@callback(
-    Output('phase_indicator', 'children'),
-    Input('auto_phase', 'data'),
-)
-def update_phase_indicator(phase):
-    """
-    Actualiza el indicador de fases como flujograma.
-    """
-    phases = ["Configuración", "Preparación", "Calentamiento", "Guiado manual", "Producción"]
-    flow = []
-
-    for i, name in enumerate(phases):
-        if i < phase:
-            color = "#4CAF50"
-        elif i == phase:
-            color = "#2196F3"
-        else:
-            color = "#BDBDBD"
-
-        flow.append(
-            html.Div([
-                html.Div(str(i+1), className="phase-circle", style={"backgroundColor": color}),
-                html.Div(name, className="phase-label")
-            ],className="phase-step")
-        )
-
-        if i < len(phases) - 1:
-            flow.append(html.Div("➜", className="phase-arrow"))
-
-    return html.Div(flow, className="phase-flow")
-
-
-# --- Callback para actualizar el contenido de cada fase en el modo automático --- #
-@callback(
-    Output('phase_content', 'children'),
-    Input('auto_phase', 'data'),
-    State('store_auto_material', 'data'),
-    prevent_initial_call=True
-)
-def update_phase_content(phase, material):
-    if phase == 0:
-        return html.Div([
-            html.H4("Configuración"),
-            html.Div([
-                html.Div([
-                    html.Label("Material"),
-                    dcc.Dropdown(id='auto_material',value='pla',
-                        options=[
-                            {'label': 'PLA', 'value': 'pla'},
-                            {'label': 'ABS', 'value': 'abs'},
-                            {'label': 'PETG', 'value': 'petg'},
-                            {'label': 'Nylon', 'value': 'nylon'},
-                            {'label': 'PC', 'value': 'pc'},
-                            {'label': 'LDPE', 'value': 'ldpe'},
-                            {'label': 'HDPE', 'value': 'hdpe'},
-                            {'label': 'PP', 'value': 'pp'}
-                        ],className='material-dropdown'
+# Función de Monitoreo
+def monitoreo():
+    return html.Div(
+        className='seccion-monitoreo',
+        children=[
+            html.Div(
+                className='fila_graficos',
+                children=[
+                    dcc.Graph(
+                        id='grafico-diametro',
+                        responsive=True,
+                        figure={
+                            'data': [{'x': [1,2,3], 'y':[4,1,2], 'type':'line', 'name':'Diámetro'}],
+                            'layout': {
+                                'title': {
+                                    'text': 'Diámetro en tiempo real',
+                                    'font': {'color': 'black', 'size': 20}
+                                },
+                                'xaxis': {
+                                    'title': {'text': 'Tiempo (s)', 'font': {'color': 'black'}},
+                                    'automargin': True
+                                },
+                                'yaxis': {
+                                    'title': {'text': 'Diámetro (mm)', 'font': {'color': 'black'}},
+                                    'automargin': True
+                                },
+                                'template': 'plotly_white',
+                                'margin': {'t': 80, 'l': 80, 'r': 40, 'b': 80},
+                                'paper_bgcolor': 'white',
+                                'plot_bgcolor': '#f9f9f9'
+                            }
+                        },
+                        className='grafico',
                     ),
-                ], className="config-item"),
-                html.Div([
-                    html.Label("Diámetro"),
-                    dcc.Input(type="number", value=1.75, className="diameter-input"),
-                ], className="config-item"),
-            ], className="config-row")
-        ])
-    
-    elif phase == 1:
-        return html.Div([html.H4("Preparación del sistema")])
-    
-    elif phase == 2:
-        return html.Div([
-            html.H4("Calentamiento extrusora"),
-            html.Div([
-                dcc.Slider(id = 'auto_temp_slider',min=180,max=220,step=1,value=200,
-                    marks={
-                        180: '180',
-                        200: '200',
-                        220: '220',
-                    },
-                    tooltip={"placement": "bottom", "always_visible": True},
-                ),
-            ]),
+                    html.Img(id='video-feed', src='/video_feed', className='grafico-img'),
+                    dcc.Interval(id='intervalo-camara',interval=100,n_intervals=0),
+                ]
+            ),
+
+            html.Div(
+                className='fila_graficos',
+                children=[
+                    dcc.Graph(
+                        id='grafico-temperatura-humedad',
+                        responsive=True,
+                        figure={
+                            'data': [{'x': [1,2,3], 'y':[4,1,2], 'type':'line', 'name':'Temperatura y humedad'}],
+                            'layout': {
+                                'title': {
+                                    'text': 'Temperatura y humedad tiempo real',
+                                    'font': {'color': 'black', 'size': 20}
+                                },
+                                'xaxis': {
+                                    'title': {'text': 'Tiempo (s)', 'font': {'color': 'black'}},
+                                    'automargin': True
+                                },
+                                'yaxis': {
+                                    'title': {'text': 'Diámetro (mm)', 'font': {'color': 'black'}},
+                                    'automargin': True
+                                },
+                                'template': 'plotly_white',
+                                'margin': {'t': 80, 'l': 80, 'r': 40, 'b': 80},
+                                'paper_bgcolor': 'white',
+                                'plot_bgcolor': '#f9f9f9'
+                            }
+                        },
+                        className='grafico',
+                    ),
+                    dcc.Graph(
+                        id='grafico-velocidades',
+                        responsive=True,
+                        figure={
+                            'data': [{'x': [1,2,3], 'y':[4,1,2], 'type':'line', 'name':'Velocidades'}],
+                            'layout': {
+                                'title': {
+                                    'text': 'Velocidades en tiempo real',
+                                    'font': {'color': 'black', 'size': 20}
+                                },
+                                'xaxis': {
+                                    'title': {'text': 'Tiempo (s)', 'font': {'color': 'black'}},
+                                    'automargin': True
+                                },
+                                'yaxis': {
+                                    'title': {'text': 'Diámetro (mm)', 'font': {'color': 'black'}},
+                                    'automargin': True
+                                },
+                                'template': 'plotly_white',
+                                'margin': {'t': 80, 'l': 80, 'r': 40, 'b': 80},
+                                'paper_bgcolor': 'white',
+                                'plot_bgcolor': '#f9f9f9'
+                            }
+                        },
+                        className='grafico',
+                    ),
+                ]
+            ),
+        ]
+    )
+
+# Función de Automatico
+def automatico():
+    return html.Div(children=[
+        
+        ]
+    )
+
+# Función de Manual
+def manual():
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.H3("Temperatura Calefactor"),
+                    dcc.Slider(
+                        id='slider-temperatura',
+                        min=100,
+                        max=400,
+                        value=100,
+                        step=1,
+                        marks={
+                            100: {'label': '100°C','style': {'color': "#64f006"}},    #LDPE
+                            115: {'label': '115°C','style': {'color': "#88d002"}},    #LDPE-HDPE
+                            180: {'label': '180°C','style': {'color': "#baa801"}},    #HDPE-PLA
+                            220: {'label': '220°C','style': {'color': "#baa801"}},    #PLA
+                            230: {'label': '230°C','style': {'color': "#ae5502"}},    #ABS
+                            250: {'label': '250°C','style': {'color': "#ae5502"}},    #ABS
+                            360: {'label': '360°C','style': {'color': "#ae0202"}},    #PEEK
+                            400: {'label': '400°C','style': {'color': "#ae0202"}},    #PEEK
+                        },
+                        included=False,
+                        tooltip={"placement": "bottom", "always_visible": True},
+                    ),
+                    html.Div(
+                        [
+                            html.Button("ON", id='temperatura-on', n_clicks=0, className='btn-on'),
+                            html.Button("OFF", id='temperatura-off', n_clicks=0, className='btn-off'),
+                        ],
+                    className='contenedor-botones',),
+                ],
+            className='contenedor_slider_botones'),
+
+            html.Div(
+                children=[
+                    html.H3("Velocidad Extrusor"),
+                    dcc.Slider(
+                        id='slider-velocidad-extrusora',
+                        min=0,
+                        max=10,
+                        value=0,
+                        step=0.1,
+                        marks={
+                            0: {'label': '0 mm/s'},
+                            1: {'label': '1 mm/s'},
+                            2: {'label': '2 mm/s'},
+                            3: {'label': '3 mm/s'},
+                            4: {'label': '4 mm/s'},
+                            5: {'label': '5 mm/s'},
+                            6: {'label': '6 mm/s'},
+                            7: {'label': '7 mm/s'},
+                            8: {'label': '8 mm/s'},
+                            9: {'label': '9 mm/s'},
+                            10: {'label': '10 mm/s'},
+                        },
+                        included=False,
+                        tooltip={"placement": "bottom", "always_visible": True},
+                    ),
+                html.Div(
+                        [
+                            html.Button("ON", id='velocidad-extrusora-on', n_clicks=0, className='btn-on'),
+                            html.Button("OFF", id='velocidad-extrusora-off', n_clicks=0, className='btn-off'),
+                        ],
+                    className='contenedor-botones',),
+                ],
+            className='contenedor_slider_botones'),
+
+            html.Div(
+                children=[
+                    html.H3("Velocidad Enrolladora"),
+                    dcc.Slider(
+                        id='slider-velocidad-enrolladora',
+                        min=0,
+                        max=10,
+                        value=0,
+                        step=0.1,
+                        marks={
+                            0: {'label': '0 mm/s'},
+                            1: {'label': '1 mm/s'},
+                            2: {'label': '2 mm/s'},
+                            3: {'label': '3 mm/s'},
+                            4: {'label': '4 mm/s'},
+                            5: {'label': '5 mm/s'},
+                            6: {'label': '6 mm/s'},
+                            7: {'label': '7 mm/s'},
+                            8: {'label': '8 mm/s'},
+                            9: {'label': '9 mm/s'},
+                            10: {'label': '10 mm/s'},
+                        },
+                        included=False,
+                        tooltip={"placement": "bottom", "always_visible": True},
+                    ),
+                html.Div(
+                        [
+                            html.Button("ON", id='velocidad-enrolladora-on', n_clicks=0, className='btn-on'),
+                            html.Button("OFF", id='velocidad-enrolladora-off', n_clicks=0, className='btn-off'),
+                        ],
+                    className='contenedor-botones',),
+                ],
+            className='contenedor_slider_botones'),
 
             html.Div([
-                daq.BooleanSwitch(
-                    id='switch_auto_temp',
-                    on=False,
-                    label="OFF / ON",
-                    labelPosition="top"
-                )
-            ], className='switch-container')
-        ])
-    
-    elif phase == 3:
-        return html.Div([html.H4("Guiado manual del filamento")])
-    
-    elif phase == 4:
-        return html.Div([html.H4("Producción"), daq.BooleanSwitch(id='switch_auto_process', on=False, label="OFF / ON")])
+                html.H3("Control Laser"),
+                html.Div(
+                        [
+                            html.Button("ON", id='laser-on', n_clicks=0, className='btn-on'),
+                            html.Button("OFF", id='laser-off', n_clicks=0, className='btn-off'),
+                        ],
+                    className='contenedor-botones',)
+                ],
+            className='contenedor_slider_botones'),
+        ],
+    className='seccion_manual')
 
 
-# ============================== #
-# ===== MODO MANUAL LAYOUT ===== #
-# ============================== #
-def manual_layout():
-    return html.Div([
-        html.H3('Controles del sistema'),
+# LAYOUT PRINCIPAL
+app.layout = html.Div([
+    # PANEL LATERAL
+    html.Div([
         html.Div([
-            html.Label('Temperatura extrusora (°C)'),
-            html.Div(
-                dcc.Slider(
-                    min=150,
-                    max=300,
-                    step=1,
-                    value=200,
-                    marks={
-                        150: '150',
-                        180: '180',
-                        210: '210',
-                        230: '230',
-                        250: '250',
-                        270: '270',
-                        300: '300',
-                        165: {'label': 'LDPE', 'style': {'color': '#3498db'}},
-                        195: {'label': 'PLA/HDPE', 'style': {'color': '#2ecc71'}},
-                        220: {'label': 'PP', 'style': {'color': '#f1c40f'}},
-                        240: {'label': 'ABS/PETG', 'style': {'color': '#e67e22'}},
-                        260: {'label': 'Nylon', 'style': {'color': '#e74c3c'}},
-                        285: {'label': 'PC', 'style': {'color': '#c0392b'}}
-                    },
-                    tooltip={"placement": "bottom", "always_visible": True},
-                ),
-            ),
-            html.Label('Velocidad extrusión (cm/s)'),
-            html.Div(
-                dcc.Slider(min=0,max=10,step=0.1,value=0,
-                    marks={
-                        0: '0',
-                        2: '2',
-                        5: '5',
-                        8: '8',
-                        10: '10',
-                        1: {'label': 'Muy baja', 'style': {'color': '#3498db'}},
-                        3.5: {'label': 'Media', 'style': {'color': '#2ecc71'}},
-                        6.5: {'label': 'Alta', 'style': {'color': '#f1c40f'}},
-                        9: {'label': 'Muy alta', 'style': {'color': '#e74c3c'}}
-                    },
-                    tooltip={"placement": "bottom", "always_visible": True},
-                ),
-            ),
-            html.Label('Velocidad enrolladora (cm/s)'),
-            html.Div(
-                dcc.Slider(min=0,max=10,step=0.1,value=0,
-                    marks={
-                        0: '0',
-                        2: '2',
-                        5: '5',
-                        8: '8',
-                        10: '10',
-                        1: {'label': 'Muy baja', 'style': {'color': '#3498db'}},
-                        3.5: {'label': 'Media', 'style': {'color': '#2ecc71'}},
-                        6.5: {'label': 'Alta', 'style': {'color': '#f1c40f'}},
-                        9: {'label': 'Muy alta', 'style': {'color': '#e74c3c'}}
-                    },
-                    tooltip={"placement": "bottom", "always_visible": True},
-                ),
-            ),
-
-            html.Div([
-                daq.BooleanSwitch(id='switch_manual',on=False,label="OFF / ON",labelPosition="top",color="#28a745")
-            ], className='switch-container')
-
-        ], className='container'),
-        html.H3('Gráficas del proceso'),
+            html.Button("Monitoreo", id='btn-monitoreo', className='boton_menu'),
+            html.Button("Automático", id='btn-automatico', className='boton_menu'),
+            html.Button("Manual", id='btn-manual', className='boton_menu'),
+        ], className='menu'),
+        
         html.Div([
-                dcc.Graph(id='diameter-graph', figure=px.line(x=[0], y=[0], title='Diámetro del filamento'), className='graph'),
-                dcc.Graph(id='temperature-graph', figure=px.line(x=[0], y=[0], title='Variables extrusora'), className='graph')
-        ], className='graphs-container'),
-    ])
+            html.Div([html.Label("Diámetro"), html.Span("0.00", className="display")], className='label-display-parametros'),
+            html.Div([html.Label("Temperatura"), html.Span("0.00", className="display")], className='label-display-parametros'),
+            html.Div([html.Label("Vel. Extrusión"), html.Span("0.00", className="display")], className='label-display-parametros'),
+            html.Div([html.Label("Vel. Enrolladora"), html.Span("0.00", className="display")], className='label-display-parametros'),
+            html.Button("Parada", id='btn-parada', className='boton_parada'),
+        ], className='parametros'),
+
+        html.Div([
+            html.Div(id='calefactor-estado', children=[html.Label("Calefactor"), html.Div(className='led-off')], className='estado'),
+            html.Div(id='motor-extrusora-estado', children=[html.Label("Motor Extrusora"), html.Div(className='led-off')], className='estado'),
+            html.Div(id='motor-enrolladora-estado', children=[html.Label("Motor Enrolladora"), html.Div(className='led-off')], className='estado'),
+            html.Div(id='laser-estado', children=[html.Label("Láser"), html.Div(className='led-off')], className='estado'),
+            html.Div(id='camara-estado', children=[html.Label("Cámara"), html.Div(className='led-off')], className='estado'),
+        ], className='estados'),
+    ], className='contenedor_lateral'),
+
+    # CONTENIDO DERECHO
+    html.Div([
+        html.Div(id='contenido', children=monitoreo()), 
+
+        html.Div([
+            html.P(f"[{datetime.now().strftime('%H:%M:%S')}] > Sistema iniciado..."),
+        ], id='log-sistema', className='contenedor_log'),
+
+    ], className='contenedor_contenido_menu'),
 
 
-# ============================ #
-# ===== CALLBACKS MANUAL ===== #
-# ============================ #
-pass
+    #MEMORIA
+    dcc.Store(id='store-graficos', storage_type='memory'), 
+    dcc.Store(id='store-estado-maquina', storage_type='memory'),
+], className='contenedor_principal')
 
 
-# ================ #
-# ===== MAIN ===== #
-# ================ #
+# CALLBACK MENU LATERAL
+@callback(
+    Output('contenido', 'children'),
+    Output('log-sistema', 'children', ),
+    Input('btn-monitoreo', 'n_clicks'),
+    Input('btn-automatico', 'n_clicks'),
+    Input('btn-manual', 'n_clicks'),
+    State('log-sistema', 'children'),
+    prevent_initial_call=True
+)
+def actualizar_interfaz(n1, n2, n3, logs_actuales):
+    if logs_actuales is None:
+        logs_actuales = []
+
+    id_disparador = ctx.triggered_id
+    hora = datetime.now().strftime('%H:%M:%S')
+    
+    if id_disparador == 'btn-monitoreo':
+        contenido = monitoreo()
+        msg = "Sección: Monitoreo cargada."
+    elif id_disparador == 'btn-automatico':
+        contenido = automatico()
+        msg = "Sección: Automático cargada."
+    elif id_disparador == 'btn-manual':
+        contenido = manual()
+        msg = "Sección: Manual cargada."
+    else:
+        return ctx.no_update, ctx.no_update
+
+    logs_actuales.append(html.P(f"[{hora}] > {msg}"))
+    return contenido, logs_actuales
+
+
+@app.callback(
+    Output('log-sistema', 'children', allow_duplicate=True),
+    Input('temperatura-on', 'n_clicks'),
+    Input('temperatura-off', 'n_clicks'),
+    Input('velocidad-extrusora-on', 'n_clicks'),
+    Input('velocidad-extrusora-off', 'n_clicks'),
+    Input('velocidad-enrolladora-on', 'n_clicks'),
+    Input('velocidad-enrolladora-off', 'n_clicks'),
+    Input('laser-on', 'n_clicks'),
+    Input('laser-off', 'n_clicks'),
+    State('log-sistema', 'children'),
+    prevent_initial_call=True
+)
+def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, logs_actuales):
+    if logs_actuales is None:
+        logs_actuales = []
+
+    id_disparador = ctx.triggered_id
+    hora = datetime.now().strftime('%H:%M:%S')
+
+    if id_disparador == "temperatura-on" and n_on1:
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Calefactor"))
+        
+    elif id_disparador == "temperatura-off" and n_off1:
+        logs_actuales.append(html.P(f"[{hora}] > Apagando Calefactor"))
+
+    elif id_disparador == "velocidad-extrusora-on" and n_on2:
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Extrusora"))
+
+    elif id_disparador == "velocidad-extrusora-off" and n_off2:
+        logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Extrusora"))
+
+    elif id_disparador == "velocidad-enrolladora-on" and n_on3:
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Enrolladora"))
+
+    elif id_disparador == "velocidad-enrolladora-off" and n_off3:
+        logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Enrolladora"))
+
+    elif id_disparador == "laser-on" and n_on4:
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Láser"))
+        laser.on()
+
+    elif id_disparador == "laser-off" and n_off4:
+        logs_actuales.append(html.P(f"[{hora}] > Apagando Láser"))
+        laser.off()
+
+    return logs_actuales
+
+
+@server.route('/video_feed')
+def video_feed():
+    return Response(
+        generate_frames(),
+        mimetype='multipart/x-mixed-replace; boundary=frame'
+    )
+
+
+@app.callback(
+    Output('log-sistema', 'children', allow_duplicate=True),
+    Input('btn-parada', 'n_clicks'),
+    State('log-sistema', 'children'),
+    prevent_initial_call=True
+)
+def parada_emergencia(n_clicks, logs_actuales):
+    if logs_actuales is None:
+        logs_actuales = []
+
+    id_disparador = ctx.triggered_id
+    hora = datetime.now().strftime('%H:%M:%S')
+
+    if id_disparador == 'btn-parada' and n_clicks:
+        logs_actuales.append(html.P(f"[{hora}] > ¡PARADA DE EMERGENCIA ACTIVADA!"))
+        laser.off()
+
+    return logs_actuales
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)
