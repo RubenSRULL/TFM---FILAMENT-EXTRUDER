@@ -30,6 +30,7 @@ server = app.server
 laser = LED(4, initial_value=False)
 # Comunicación CAN
 can_com = CAN_COM()
+can_com.iniciar_recepcion()
 
 
 #--------------------#
@@ -68,8 +69,7 @@ def monitoreo():
                                 'plot_bgcolor': '#f9f9f9'
                             }
                         },
-                        className='grafico',
-                    ),
+                    className='grafico'),
                     html.Img(id='video-feed', src='/video_feed', className='grafico-img'),
                     dcc.Interval(id='intervalo-camara',interval=100,n_intervals=0),
                 ]
@@ -128,8 +128,7 @@ def monitoreo():
                                 'plot_bgcolor': '#f9f9f9'
                             }
                         },
-                        className='grafico',
-                    ),
+                    className='grafico'),
                 ]
             ),
         ]
@@ -159,17 +158,12 @@ def manual():
                         step=1,
                         marks={
                             100: {'label': '100°C','style': {'color': "#64f006"}},
-                            107: {'label': 'LDPE','style': {'color': "#64f006"}},
                             115: {'label': '115°C','style': {'color': "#88d002"}},
-                            150: {'label': 'HDPE','style': {'color': "#88d002"}},
                             180: {'label': '180°C','style': {'color': "#baa801"}},
-                            200: {'label': 'PLA','style': {'color': "#baa801"}},
                             220: {'label': '220°C','style': {'color': "#baa801"}},
                             230: {'label': '230°C','style': {'color': "#ae5502"}},
-                            240: {'label': 'ABS','style': {'color': "#ae5502"}},
                             250: {'label': '250°C','style': {'color': "#ae5502"}},
                             360: {'label': '360°C','style': {'color': "#ae0202"}},
-                            380: {'label': 'PEEK','style': {'color': "#ae0202"}},
                             400: {'label': '400°C','style': {'color': "#ae0202"}},
                         },
                         included=False,
@@ -180,7 +174,7 @@ def manual():
                             html.Button("ON", id='temperatura-on', n_clicks=0, className='btn-on'),
                             html.Button("OFF", id='temperatura-off', n_clicks=0, className='btn-off'),
                         ],
-                    className='contenedor-botones',),
+                    className='contenedor-botones'),
                 ],
             className='contenedor_slider_botones'),
 
@@ -214,7 +208,7 @@ def manual():
                             html.Button("ON", id='velocidad-extrusora-on', n_clicks=0, className='btn-on'),
                             html.Button("OFF", id='velocidad-extrusora-off', n_clicks=0, className='btn-off'),
                         ],
-                    className='contenedor-botones',),
+                    className='contenedor-botones'),
                 ],
             className='contenedor_slider_botones'),
 
@@ -392,12 +386,15 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
     if id_disparador == 'btn-monitoreo':
         contenido = monitoreo()
         msg = "Sección: Monitoreo cargada."
+
     elif id_disparador == 'btn-automatico':
         contenido = automatico()
         msg = "Sección: Automático cargada."
+
     elif id_disparador == 'btn-manual':
         contenido = manual()
         msg = "Sección: Manual cargada."
+
     else:
         return ctx.no_update, ctx.no_update
 
@@ -429,28 +426,46 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
     hora = datetime.now().strftime('%H:%M:%S')
 
     if id_disparador == "temperatura-on" and n_on1:
-        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Calefactor a {slider_temp}°C"))
         can_com.enviar_mensaje(0x100,f"C_ON{slider_temp}")
+        if can_com.get_mensaje() == "OK":
+            logs_actuales.append(html.P(f"[{hora}] > Encendiendo Calefactor a {slider_temp}°C"))
+        else:
+            logs_actuales.append(html.P(f"[{hora}] > Error Encendiendo Calefactor"))
         
     elif id_disparador == "temperatura-off" and n_off1:
-        logs_actuales.append(html.P(f"[{hora}] > Apagando Calefactor"))
         can_com.enviar_mensaje(0x100,"C_OFF")
+        if can_com.get_mensaje() == "OK":
+            logs_actuales.append(html.P(f"[{hora}] > Apagando Calefactor"))
+        else:
+            logs_actuales.append(html.P(f"[{hora}] > Error Apagando Calefactor"))
 
     elif id_disparador == "velocidad-extrusora-on" and n_on2:
-        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Extrusora a {slider_vel_extr} mm/s"))
         can_com.enviar_mensaje(0x101,f"EX_ON{slider_vel_extr}")
+        if can_com.get_mensaje() == "OK":
+            logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Extrusora a {slider_vel_extr} mm/s"))
+        else:
+            logs_actuales.append(html.P(f"[{hora}] > Error Encendiendo Motor Extrusora"))
 
     elif id_disparador == "velocidad-extrusora-off" and n_off2:
-        logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Extrusora"))
         can_com.enviar_mensaje(0x101,"EX_OFF")
+        if can_com.get_mensaje() == "OK":
+            logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Extrusora"))
+        else:
+            logs_actuales.append(html.P(f"[{hora}] > Error Apagando Motor Extrusora"))
 
     elif id_disparador == "velocidad-enrolladora-on" and n_on3:
-        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Enrolladora a {slider_vel_enroll} mm/s"))
         can_com.enviar_mensaje(0x102,f"EN_ON{slider_vel_enroll}")
+        if can_com.get_mensaje() == "OK":
+            logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Enrolladora a {slider_vel_enroll} mm/s"))
+        else:
+            logs_actuales.append(html.P(f"[{hora}] > Error Encendiendo Motor Enrolladora"))
 
     elif id_disparador == "velocidad-enrolladora-off" and n_off3:
-        logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Enrolladora"))
         can_com.enviar_mensaje(0x102,"EN_OFF")
+        if can_com.get_mensaje() == "OK":
+            logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Enrolladora"))
+        else:
+            logs_actuales.append(html.P(f"[{hora}] > Error Apagando Motor Enrolladora"))
 
     elif id_disparador == "laser-on" and n_on4:
         logs_actuales.append(html.P(f"[{hora}] > Encendiendo Láser"))

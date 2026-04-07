@@ -36,6 +36,7 @@ class CAN_COM:
         # Variable para controlar el hilo de recepción
         self._running = False
         self._thread = None
+        self.ultimo_mensaje_recibido = None
 
 
     #-----Envio de mensajes CAN-----#
@@ -86,7 +87,7 @@ class CAN_COM:
             try:
                 msg = self.bus.recv(timeout=1.0)
                 if msg:
-                    texto = msg.data.decode('utf-8', errors='ignore')
+                    self.ultimo_mensaje_recibido = msg.data.decode('utf-8', errors='ignore')
                     print(f"[RX] {hex(msg.arbitration_id)} -> {msg.data} ({texto})")
             except can.CanError as e:
                 print(f"Error recibiendo: {e}")
@@ -142,6 +143,12 @@ class CAN_COM:
         if self.bus:
             self.bus.shutdown()
             print("Bus cerrado")
+
+    
+    def get_mensaje(self):
+        mensaje = self.ultimo_mensaje_recibido
+        self.ultimo_mensaje_recibido = None
+        return mensaje
 
 
 #--- Programa principal para probar la clase CAN_COM ---#
