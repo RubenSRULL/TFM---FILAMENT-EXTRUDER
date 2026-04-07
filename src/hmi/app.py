@@ -1,46 +1,32 @@
+#------------------#
+#---- Módulos -----#
+#------------------#
 from dash import Dash, html, dcc, callback, Output, Input, State, ctx
 from datetime import datetime
 from flask import Flask, Response
-from picamera2 import Picamera2
-import cv2
-import time
+from backend import CAMERA_HQ
 from gpiozero import LED
 
 
-# 1. Configuración de la Cámara
-picam2 = Picamera2()
-video_config = picam2.create_video_configuration(
-    main={"size": (1280, 720), "format": "RGB888"},
-    controls={
-        "AeEnable": True,
-        "AwbEnable": True,
-        "Brightness": 0.0,
-        "Contrast": 1.0,
-        "Sharpness": 1.0,
-        "Saturation": 1.0
-    }
-)
-picam2.configure(video_config)
-picam2.start()
-time.sleep(2)
+#------------------#
+#---- Objetos -----#
+#------------------#
 
-# Generador de Frames (IA)
-def generate_frames():
-    while True:
-        frame = picam2.capture_array()
-        # Convertimos de RGB (Picamera2) a BGR para OpenCV
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        _, buffer = cv2.imencode('.jpg', frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-
-
+# Aplicacion Dash
 app = Dash(__name__, suppress_callback_exceptions=True)
+# Camara HQ
+camara = CAMERA_HQ()
+# Servidor 
 server = app.server
+# Láser
 laser = LED(4, initial_value=False)
 
-# Función de Monitoreo
+
+#--------------------#
+#---- Funciones -----#
+#--------------------#
+
+# Layout de monitoreo
 def monitoreo():
     return html.Div(
         className='seccion-monitoreo',
@@ -139,12 +125,14 @@ def monitoreo():
         ]
     )
 
+
 # Función de Automatico
 def automatico():
     return html.Div(children=[
         
         ]
     )
+
 
 # Función de Manual
 def manual():
@@ -160,14 +148,19 @@ def manual():
                         value=100,
                         step=1,
                         marks={
-                            100: {'label': '100°C','style': {'color': "#64f006"}},    #LDPE
-                            115: {'label': '115°C','style': {'color': "#88d002"}},    #LDPE-HDPE
-                            180: {'label': '180°C','style': {'color': "#baa801"}},    #HDPE-PLA
-                            220: {'label': '220°C','style': {'color': "#baa801"}},    #PLA
-                            230: {'label': '230°C','style': {'color': "#ae5502"}},    #ABS
-                            250: {'label': '250°C','style': {'color': "#ae5502"}},    #ABS
-                            360: {'label': '360°C','style': {'color': "#ae0202"}},    #PEEK
-                            400: {'label': '400°C','style': {'color': "#ae0202"}},    #PEEK
+                            100: {'label': '100°C','style': {'color': "#64f006"}},
+                            107: {'label': 'LDPE','style': {'color': "#64f006"}},
+                            115: {'label': '115°C','style': {'color': "#88d002"}},
+                            150: {'label': 'HDPE','style': {'color': "#88d002"}},
+                            180: {'label': '180°C','style': {'color': "#baa801"}},
+                            200: {'label': 'PLA','style': {'color': "#baa801"}},
+                            220: {'label': '220°C','style': {'color': "#baa801"}},
+                            230: {'label': '230°C','style': {'color': "#ae5502"}},
+                            240: {'label': 'ABS','style': {'color': "#ae5502"}},
+                            250: {'label': '250°C','style': {'color': "#ae5502"}},
+                            360: {'label': '360°C','style': {'color': "#ae0202"}},
+                            380: {'label': 'PEEK','style': {'color': "#ae0202"}},
+                            400: {'label': '400°C','style': {'color': "#ae0202"}},
                         },
                         included=False,
                         tooltip={"placement": "bottom", "always_visible": True},
@@ -267,44 +260,106 @@ def manual():
 app.layout = html.Div([
     # PANEL LATERAL
     html.Div([
-        html.Div([
-            html.Button("Monitoreo", id='btn-monitoreo', className='boton_menu'),
-            html.Button("Automático", id='btn-automatico', className='boton_menu'),
-            html.Button("Manual", id='btn-manual', className='boton_menu'),
-        ], className='menu'),
+        html.Div(
+            [
+                html.Button("Monitoreo", id='btn-monitoreo', className='boton_menu'),
+                html.Button("Automático", id='btn-automatico', className='boton_menu'),
+                html.Button("Manual", id='btn-manual', className='boton_menu'),
+            ],
+        className='menu'),
         
-        html.Div([
-            html.Div([html.Label("Diámetro"), html.Span("0.00", className="display")], className='label-display-parametros'),
-            html.Div([html.Label("Temperatura"), html.Span("0.00", className="display")], className='label-display-parametros'),
-            html.Div([html.Label("Vel. Extrusión"), html.Span("0.00", className="display")], className='label-display-parametros'),
-            html.Div([html.Label("Vel. Enrolladora"), html.Span("0.00", className="display")], className='label-display-parametros'),
-            html.Button("Parada", id='btn-parada', className='boton_parada'),
-        ], className='parametros'),
+        html.Div(
+            [
+                html.Div(
+                    [
+                        html.Label("Diámetro"),
+                        html.Span("0.00", className="display")
+                    ],
+                className='label-display-parametros'),
 
-        html.Div([
-            html.Div(id='calefactor-estado', children=[html.Label("Calefactor"), html.Div(className='led-off')], className='estado'),
-            html.Div(id='motor-extrusora-estado', children=[html.Label("Motor Extrusora"), html.Div(className='led-off')], className='estado'),
-            html.Div(id='motor-enrolladora-estado', children=[html.Label("Motor Enrolladora"), html.Div(className='led-off')], className='estado'),
-            html.Div(id='laser-estado', children=[html.Label("Láser"), html.Div(className='led-off')], className='estado'),
-            html.Div(id='camara-estado', children=[html.Label("Cámara"), html.Div(className='led-off')], className='estado'),
-        ], className='estados'),
-    ], className='contenedor_lateral'),
+                html.Div(
+                    [
+                        html.Label("Temperatura"),
+                        html.Span("0.00", className="display")
+                    ],
+                className='label-display-parametros'),
+
+                html.Div(
+                    [
+                        html.Label("Vel. Extrusión"),
+                        html.Span("0.00", className="display")
+                    ],
+                className='label-display-parametros'),
+
+                html.Div(
+                    [
+                        html.Label("Vel. Enrolladora"),
+                        html.Span("0.00", className="display")
+                    ],
+                className='label-display-parametros'),
+
+                html.Button("Parada", id='btn-parada', className='boton_parada'),
+            ],
+        className='parametros'),
+
+        html.Div(
+            [
+                html.Div(id='calefactor-estado',
+                        children=[
+                            html.Label("Calefactor"),
+                            html.Div(className='led-off')
+                        ],
+                        className='estado'),
+                
+                html.Div(id='motor-extrusora-estado',
+                        children=[
+                            html.Label("Motor Extrusora"),
+                            html.Div(className='led-off')
+                        ],
+                        className='estado'),
+
+                html.Div(id='motor-enrolladora-estado',
+                         children=[
+                            html.Label("Motor Enrolladora"),
+                            html.Div(className='led-off')
+                        ],
+                        className='estado'),
+                    
+                html.Div(id='laser-estado',
+                        children=[
+                            html.Label("Láser"),
+                            html.Div(className='led-off')
+                        ],
+                        className='estado'),
+                    
+                html.Div(id='camara-estado',
+                        children=[
+                            html.Label("Cámara"),
+                            html.Div(className='led-off')
+                        ],
+                        className='estado'),
+            ],
+        className='estados'),
+    ],
+    className='contenedor_lateral'),
 
     # CONTENIDO DERECHO
     html.Div([
         html.Div(id='contenido', children=monitoreo()), 
-
-        html.Div([
-            html.P(f"[{datetime.now().strftime('%H:%M:%S')}] > Sistema iniciado..."),
-        ], id='log-sistema', className='contenedor_log'),
-
-    ], className='contenedor_contenido_menu'),
-
+        html.Div(
+            [
+                html.P(f"[{datetime.now().strftime('%H:%M:%S')}] > Sistema iniciado..."),
+            ],
+            id='log-sistema',
+            className='contenedor_log'),
+    ],
+    className='contenedor_contenido_menu'),
 
     #MEMORIA
     dcc.Store(id='store-graficos', storage_type='memory'), 
     dcc.Store(id='store-estado-maquina', storage_type='memory'),
-], className='contenedor_principal')
+],
+className='contenedor_principal')
 
 
 # CALLBACK MENU LATERAL
@@ -392,7 +447,7 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, l
 @server.route('/video_feed')
 def video_feed():
     return Response(
-        generate_frames(),
+        camara.generate_frames(),
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
 

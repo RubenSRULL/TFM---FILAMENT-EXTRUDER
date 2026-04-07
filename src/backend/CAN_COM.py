@@ -1,7 +1,4 @@
 # Autor: Ruben Sahuquillo Redondo
-# Descripción:  Este módulo implementa la clase CAN_COM para la comunicación CAN utilizando la biblioteca python-can.
-#               Permite enviar y recibir mensajes CAN, así como codificar y decodificar datos.
-#               El programa principal inicia la recepción de mensajes y maneja la terminación del programa.
 
 
 #-----------------------------------------#
