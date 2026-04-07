@@ -1,25 +1,35 @@
+# python -m src.hmi.app
+# source myenv/bin/activate
+# ip link show can0
+# sudo ip link set can0 down
+# sudo ip link set can0 up type can bitrate 500000
+
+
 #------------------#
 #---- Módulos -----#
 #------------------#
 from dash import Dash, html, dcc, callback, Output, Input, State, ctx
 from datetime import datetime
 from flask import Flask, Response
-from backend import CAMERA_HQ
+from src.backend.CAMARA_HQ import CAMARA_HQ
+from src.backend.CAN_COM import CAN_COM
 from gpiozero import LED
 
 
 #------------------#
 #---- Objetos -----#
-#------------------#
+#------------------#    
 
 # Aplicacion Dash
 app = Dash(__name__, suppress_callback_exceptions=True)
 # Camara HQ
-camara = CAMERA_HQ()
+camara = CAMARA_HQ()
 # Servidor 
 server = app.server
 # Láser
 laser = LED(4, initial_value=False)
+# Comunicación CAN
+can_com = CAN_COM()
 
 
 #--------------------#
@@ -405,10 +415,13 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
     Input('velocidad-enrolladora-off', 'n_clicks'),
     Input('laser-on', 'n_clicks'),
     Input('laser-off', 'n_clicks'),
+    Input('slider-temperatura', 'value'),
+    Input('slider-velocidad-extrusora', 'value'),
+    Input('slider-velocidad-enrolladora', 'value'),
     State('log-sistema', 'children'),
     prevent_initial_call=True
 )
-def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, logs_actuales):
+def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, slider_temp, slider_vel_extr, slider_vel_enroll, logs_actuales):
     if logs_actuales is None:
         logs_actuales = []
 
@@ -416,22 +429,28 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, l
     hora = datetime.now().strftime('%H:%M:%S')
 
     if id_disparador == "temperatura-on" and n_on1:
-        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Calefactor"))
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Calefactor a {slider_temp}°C"))
+        can_com.enviar_mensaje(0x100,f"C_ON{slider_temp}")
         
     elif id_disparador == "temperatura-off" and n_off1:
         logs_actuales.append(html.P(f"[{hora}] > Apagando Calefactor"))
+        can_com.enviar_mensaje(0x100,"C_OFF")
 
     elif id_disparador == "velocidad-extrusora-on" and n_on2:
-        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Extrusora"))
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Extrusora a {slider_vel_extr} mm/s"))
+        can_com.enviar_mensaje(0x101,f"EX_ON{slider_vel_extr}")
 
     elif id_disparador == "velocidad-extrusora-off" and n_off2:
         logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Extrusora"))
+        can_com.enviar_mensaje(0x101,"EX_OFF")
 
     elif id_disparador == "velocidad-enrolladora-on" and n_on3:
-        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Enrolladora"))
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Enrolladora a {slider_vel_enroll} mm/s"))
+        can_com.enviar_mensaje(0x102,f"EN_ON{slider_vel_enroll}")
 
     elif id_disparador == "velocidad-enrolladora-off" and n_off3:
         logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Enrolladora"))
+        can_com.enviar_mensaje(0x102,"EN_OFF")
 
     elif id_disparador == "laser-on" and n_on4:
         logs_actuales.append(html.P(f"[{hora}] > Encendiendo Láser"))
