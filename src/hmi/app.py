@@ -8,7 +8,7 @@
 #------------------#
 #---- Módulos -----#
 #------------------#
-from dash import Dash, html, dcc, callback, Output, Input, State, ctx
+from dash import Dash, html, dcc, callback, Output, Input, State, ctx, no_update
 from datetime import datetime
 from flask import Flask, Response
 from src.backend.CAMARA_HQ import CAMARA_HQ
@@ -137,8 +137,33 @@ def monitoreo():
 
 # Función de Automatico
 def automatico():
-    return html.Div(children=[
-        
+    return html.Div(
+        className='contenedor_fases',
+        children=[
+            html.Div([
+                html.Label("1", className='fase_auto'),
+                html.Label("Configuración"),
+            ], className='fila_fase_auto'),
+
+            html.Div([
+                html.Label("2", className='fase_auto'),
+                html.Label("Calentamiento"),
+            ], className='fila_fase_auto'),
+
+            html.Div([
+                html.Label("3", className='fase_auto'),
+                html.Label("Guiado"),
+            ], className='fila_fase_auto'),
+
+            html.Div([
+                html.Label("4", className='fase_auto'),
+                html.Label("Extrusión"),
+            ], className='fila_fase_auto'),
+
+            html.Div([
+                html.Label("5", className='fase_auto'),
+                html.Label("Finalización"),
+            ], className='fila_fase_auto'),
         ]
     )
 
@@ -388,12 +413,18 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
         msg = "Sección: Monitoreo cargada."
 
     elif id_disparador == 'btn-automatico':
+        can_com.enviar_mensaje(0x201, "AUTO")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        msg = f"Sección: Automático cargada. {'Modo automático activado en uC.' if exito else 'Error al activar modo automático en uC.'}"
         contenido = automatico()
-        msg = "Sección: Automático cargada."
 
     elif id_disparador == 'btn-manual':
+        can_com.enviar_mensaje(0x202, "MANUAL")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        msg = f"Sección: Manual cargada. {'Modo manual activado en uC.' if exito else 'Error al activar modo manual en uC.'}"
         contenido = manual()
-        msg = "Sección: Manual cargada."
 
     else:
         return ctx.no_update, ctx.no_update
@@ -402,8 +433,13 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
     return contenido, logs_actuales
 
 
-@app.callback(
+# CALLBACK BOTONES MANUAL
+@callback(
     Output('log-sistema', 'children', allow_duplicate=True),
+    Output('calefactor-estado', 'children', allow_duplicate=True),
+    Output('motor-extrusora-estado', 'children', allow_duplicate=True),
+    Output('motor-enrolladora-estado', 'children', allow_duplicate=True),
+    Output('laser-estado', 'children', allow_duplicate=True),
     Input('temperatura-on', 'n_clicks'),
     Input('temperatura-off', 'n_clicks'),
     Input('velocidad-extrusora-on', 'n_clicks'),
@@ -412,9 +448,9 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
     Input('velocidad-enrolladora-off', 'n_clicks'),
     Input('laser-on', 'n_clicks'),
     Input('laser-off', 'n_clicks'),
-    Input('slider-temperatura', 'value'),
-    Input('slider-velocidad-extrusora', 'value'),
-    Input('slider-velocidad-enrolladora', 'value'),
+    State('slider-temperatura', 'value'),
+    State('slider-velocidad-extrusora', 'value'),
+    State('slider-velocidad-enrolladora', 'value'),
     State('log-sistema', 'children'),
     prevent_initial_call=True
 )
@@ -425,59 +461,77 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
     id_disparador = ctx.triggered_id
     hora = datetime.now().strftime('%H:%M:%S')
 
+    # Inicializamos todas las salidas como no_update
+    # Esto evita el UnboundLocalError si no se entra en un IF específico
+    calefactor_estado = no_update
+    motor_extrusora_estado = no_update
+    motor_enrolladora_estado = no_update
+    laser_estado = no_update
+
+    # --- LÓGICA DE CALEFACTOR ---
     if id_disparador == "temperatura-on" and n_on1:
-        can_com.enviar_mensaje(0x100,f"C_ON{slider_temp}")
-        if can_com.get_mensaje() == "OK":
-            logs_actuales.append(html.P(f"[{hora}] > Encendiendo Calefactor a {slider_temp}°C"))
-        else:
-            logs_actuales.append(html.P(f"[{hora}] > Error Encendiendo Calefactor"))
+        can_com.enviar_mensaje(0x100, f"C_ON{slider_temp}")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        logs_actuales.append(html.P(f"[{hora}] > {'Encendiendo' if exito else 'Error'} Calefactor"))
+        # Re-insertamos el Label para no perderlo en el layout
+        calefactor_estado = [html.Label("Calefactor"), html.Div(className='led-on' if exito else 'led-off')]
         
     elif id_disparador == "temperatura-off" and n_off1:
-        can_com.enviar_mensaje(0x100,"C_OFF")
-        if can_com.get_mensaje() == "OK":
-            logs_actuales.append(html.P(f"[{hora}] > Apagando Calefactor"))
-        else:
-            logs_actuales.append(html.P(f"[{hora}] > Error Apagando Calefactor"))
+        can_com.enviar_mensaje(0x100, "C_OFF")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        logs_actuales.append(html.P(f"[{hora}] > {'Apagando' if exito else 'Error'} Calefactor"))
+        calefactor_estado = [html.Label("Calefactor"), html.Div(className='led-off' if exito else 'led-on')]
 
+    # --- LÓGICA DE EXTRUSORA ---
     elif id_disparador == "velocidad-extrusora-on" and n_on2:
-        can_com.enviar_mensaje(0x101,f"EX_ON{slider_vel_extr}")
-        if can_com.get_mensaje() == "OK":
-            logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Extrusora a {slider_vel_extr} mm/s"))
-        else:
-            logs_actuales.append(html.P(f"[{hora}] > Error Encendiendo Motor Extrusora"))
+        can_com.enviar_mensaje(0x101, f"EX_ON{slider_vel_extr}")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        logs_actuales.append(html.P(f"[{hora}] > {'Encendiendo' if exito else 'Error'} Motor Extrusora"))
+        motor_extrusora_estado = [html.Label("Motor Extrusora"), html.Div(className='led-on' if exito else 'led-off')]
 
     elif id_disparador == "velocidad-extrusora-off" and n_off2:
-        can_com.enviar_mensaje(0x101,"EX_OFF")
-        if can_com.get_mensaje() == "OK":
-            logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Extrusora"))
-        else:
-            logs_actuales.append(html.P(f"[{hora}] > Error Apagando Motor Extrusora"))
+        can_com.enviar_mensaje(0x101, "EX_OFF")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        logs_actuales.append(html.P(f"[{hora}] > {'Apagando' if exito else 'Error'} Motor Extrusora"))
+        motor_extrusora_estado = [html.Label("Motor Extrusora"), html.Div(className='led-off' if exito else 'led-on')]
 
+    # --- LÓGICA DE ENROLLADORA ---
     elif id_disparador == "velocidad-enrolladora-on" and n_on3:
-        can_com.enviar_mensaje(0x102,f"EN_ON{slider_vel_enroll}")
-        if can_com.get_mensaje() == "OK":
-            logs_actuales.append(html.P(f"[{hora}] > Encendiendo Motor Enrolladora a {slider_vel_enroll} mm/s"))
-        else:
-            logs_actuales.append(html.P(f"[{hora}] > Error Encendiendo Motor Enrolladora"))
+        can_com.enviar_mensaje(0x102, f"EN_ON{slider_vel_enroll}")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        logs_actuales.append(html.P(f"[{hora}] > {'Encendiendo' if exito else 'Error'} Motor Enrolladora"))
+        motor_enrolladora_estado = [html.Label("Motor Enrolladora"), html.Div(className='led-on' if exito else 'led-off')]
 
     elif id_disparador == "velocidad-enrolladora-off" and n_off3:
-        can_com.enviar_mensaje(0x102,"EN_OFF")
-        if can_com.get_mensaje() == "OK":
-            logs_actuales.append(html.P(f"[{hora}] > Apagando Motor Enrolladora"))
-        else:
-            logs_actuales.append(html.P(f"[{hora}] > Error Apagando Motor Enrolladora"))
+        can_com.enviar_mensaje(0x102, "EN_OFF")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        logs_actuales.append(html.P(f"[{hora}] > {'Apagando' if exito else 'Error'} Motor Enrolladora"))
+        motor_enrolladora_estado = [html.Label("Motor Enrolladora"), html.Div(className='led-off' if exito else 'led-on')]
 
+    # --- LÓGICA DE LÁSER ---
     elif id_disparador == "laser-on" and n_on4:
-        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Láser"))
         laser.on()
+        logs_actuales.append(html.P(f"[{hora}] > Encendiendo Láser"))
+        laser_estado = [html.Label("Láser"), html.Div(className='led-on')]
 
     elif id_disparador == "laser-off" and n_off4:
-        logs_actuales.append(html.P(f"[{hora}] > Apagando Láser"))
         laser.off()
+        logs_actuales.append(html.P(f"[{hora}] > Apagando Láser"))
+        laser_estado = [html.Label("Láser"), html.Div(className='led-off')]
 
-    return logs_actuales
+    # Si no hubo disparador válido (aunque prevent_initial_call debería evitarlo)
+    else:
+        return no_update, no_update, no_update, no_update, no_update
 
+    return logs_actuales, calefactor_estado, motor_extrusora_estado, motor_enrolladora_estado, laser_estado
 
+# Función para alimentar el video en tiempo real
 @server.route('/video_feed')
 def video_feed():
     return Response(
@@ -488,6 +542,10 @@ def video_feed():
 
 @app.callback(
     Output('log-sistema', 'children', allow_duplicate=True),
+    Output('calefactor-estado', 'children', allow_duplicate=True),
+    Output('motor-extrusora-estado', 'children', allow_duplicate=True),
+    Output('motor-enrolladora-estado', 'children', allow_duplicate=True),
+    Output('laser-estado', 'children', allow_duplicate=True),
     Input('btn-parada', 'n_clicks'),
     State('log-sistema', 'children'),
     prevent_initial_call=True
@@ -499,11 +557,24 @@ def parada_emergencia(n_clicks, logs_actuales):
     id_disparador = ctx.triggered_id
     hora = datetime.now().strftime('%H:%M:%S')
 
+    calefactor_estado = no_update
+    motor_extrusora_estado = no_update
+    motor_enrolladora_estado = no_update
+    laser_estado = no_update
+
     if id_disparador == 'btn-parada' and n_clicks:
-        logs_actuales.append(html.P(f"[{hora}] > ¡PARADA DE EMERGENCIA ACTIVADA!"))
+        can_com.enviar_mensaje(0x400, "STOP")
+        respuesta = can_com.get_mensaje()
+        exito = respuesta and respuesta[1] == "OK"
+        msg = f"¡PARADA DE EMERGENCIA ACTIVADA! {'Parada de emergencia activada en uC.' if exito else 'Error al activar parada de emergencia en uC.'}"
+        logs_actuales.append(html.P(f"[{hora}] > {msg}"))
+        calefactor_estado = [html.Label("Calefactor"), html.Div(className='led-off' if exito else 'led-off')]
+        motor_extrusora_estado = [html.Label("Motor Extrusora"), html.Div(className='led-off' if exito else 'led-off')]
+        motor_enrolladora_estado = [html.Label("Motor Enrolladora"), html.Div(className='led-off' if exito else 'led-off')]
+        laser_estado = [html.Label("Láser"), html.Div(className='led-off' if exito else 'led-off')]
         laser.off()
 
-    return logs_actuales
+    return logs_actuales, calefactor_estado, motor_extrusora_estado, motor_enrolladora_estado, laser_estado
 
 
 if __name__ == '__main__':
