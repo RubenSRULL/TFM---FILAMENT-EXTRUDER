@@ -52,6 +52,21 @@ void loop() {
                     enviarString(0x300, "OK");
                     break;
 
+                case 0x201: //Ejemplo: Modo Auto
+                    Serial.println("Acción: Cambio modo Automatico...");
+                    enviarString(0x300, "OK");
+                    break;
+
+                case 0x202: //Ejemplo: Modo Manual
+                    Serial.println("Acción: Cambio modo Manual...");
+                    enviarString(0x300, "OK");
+                    break;
+
+                case 0x400: //Ejemplo: PE
+                    Serial.println("Acción: Parada...");
+                    enviarString(0x300, "OK");
+                    break;
+
                 default:
                     Serial.println("ID desconocido, no se requiere respuesta.");
                     break;
