@@ -117,8 +117,11 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	  /* mensaje a enviar */
 	  char msg[] = "STM32 extruder alive\r\n";
+	  /* transmitir mensaje por UART */
 	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
+	  /* delay */
 	  HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }

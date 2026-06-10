@@ -37,15 +37,15 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  16 .debug_macro  00027a04  00000000  00000000  00025d01  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   0001a0ab  00000000  00000000  0004d705  2**0
+ 17 .debug_line   0001a0ad  00000000  00000000  0004d705  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    001056e8  00000000  00000000  000677b0  2**0
+ 18 .debug_str    001056e8  00000000  00000000  000677b2  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000043  00000000  00000000  0016ce98  2**0
+ 19 .comment      00000043  00000000  00000000  0016ce9a  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  00005e5c  00000000  00000000  0016cedc  2**2
+ 20 .debug_frame  00005e5c  00000000  00000000  0016cee0  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 21 .debug_line_str 000000c1  00000000  00000000  00172d38  2**0
+ 21 .debug_line_str 000000c1  00000000  00000000  00172d3c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -421,11 +421,11 @@ int main(void)
  8000576:	f000 f99f 	bl	80008b8 <MX_TIM2_Init>
   MX_USART1_UART_Init();
  800057a:	f000 fa15 	bl	80009a8 <MX_USART1_UART_Init>
-  /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
+	  /* mensaje a enviar */
 	  char msg[] = "STM32 extruder alive\r\n";
  800057e:	4b0f      	ldr	r3, [pc, #60]	@ (80005bc <main+0x68>)
  8000580:	463c      	mov	r4, r7
@@ -439,6 +439,7 @@ int main(void)
  8000592:	3402      	adds	r4, #2
  8000594:	0c0b      	lsrs	r3, r1, #16
  8000596:	7023      	strb	r3, [r4, #0]
+	  /* transmitir mensaje por UART */
 	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
  8000598:	463b      	mov	r3, r7
  800059a:	4618      	mov	r0, r3
@@ -449,6 +450,7 @@ int main(void)
  80005a6:	2364      	movs	r3, #100	@ 0x64
  80005a8:	4805      	ldr	r0, [pc, #20]	@ (80005c0 <main+0x6c>)
  80005aa:	f004 fb4f 	bl	8004c4c <HAL_UART_Transmit>
+	  /* delay */
 	  HAL_Delay(1000);
  80005ae:	f44f 707a 	mov.w	r0, #1000	@ 0x3e8
  80005b2:	f000 fdf3 	bl	800119c <HAL_Delay>
