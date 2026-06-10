@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <stdio.h>
 #include <string.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -117,12 +118,29 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  /* mensaje a enviar */
+
+	  /*
 	  char msg[] = "STM32 extruder alive\r\n";
-	  /* transmitir mensaje por UART */
 	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
-	  /* delay */
 	  HAL_Delay(1000);
+	  */
+
+	  char msg[100];
+
+	  snprintf(msg, sizeof(msg),
+	           "CS=%d SSR=%d DIR=%d EN=%d\r\n",
+	           HAL_GPIO_ReadPin(CS_GPIO_Port, CS_Pin),
+	           HAL_GPIO_ReadPin(SSR_GPIO_Port, SSR_Pin),
+	           HAL_GPIO_ReadPin(DIR_GPIO_Port, DIR_Pin),
+	           HAL_GPIO_ReadPin(ENABLE_GPIO_Port, ENABLE_Pin));
+
+	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
+	  HAL_Delay(1000);
+
+
+
+
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
