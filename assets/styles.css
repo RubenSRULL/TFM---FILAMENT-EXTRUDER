@@ -315,3 +315,101 @@
     border-radius: 50%;
     margin-bottom: 0px !important; 
 }
+
+/* ----------------------------- */
+/* ---- Modo automático -------- */
+/* ----------------------------- */
+
+.contenedor_fases {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    padding: 20px;
+}
+
+.indicadores_fases_auto {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    flex-wrap: nowrap;
+}
+
+.fila_fase_auto {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    background: #f4f4f4;
+    padding: 10px;
+    border-radius: 12px;
+}
+
+.fase_auto {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    background-color: #e6e6e6;
+    color: #333;
+    border: 2px solid #bdbdbd;
+}
+
+.fase_auto_activa {
+    background-color: #2f80ed;
+    color: white;
+    border-color: #2f80ed;
+}
+
+.fase_auto_completada {
+    background-color: #27ae60;
+    color: white;
+    border-color: #27ae60;
+}
+
+.label_fase_auto {
+    margin-top: 8px;
+    font-weight: 500;
+    color: #333;
+    text-align: center;
+}
+
+.label_fase_auto_activa {
+    font-weight: 700;
+    color: #2f80ed;
+}
+
+.contenedor_fase_auto {
+    background-color: white;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.controles_fase_auto {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 20px;
+}
+
+.campo_auto {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.navegacion_fases_auto {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+}

@@ -18,30 +18,93 @@ from gpiozero import LED
 #------------------#
 #---- Objetos -----#
 #------------------#    
-
 # Aplicacion Dash
 app = Dash(__name__, suppress_callback_exceptions=True)
-
 # Camara HQ
-camara = CAMARA_HQ()
-
-# Servidor 
+camara = CAMARA_HQ(verbose=True)
+# Servidor Flask para streaming de video
 server = app.server
-
 # Láser
 laser = LED(4, initial_value=False)
-
 # Comunicación CAN
 can_com = CAN_COM(modo_simulado=True)
 can_com.iniciar_recepcion()
 
 
 #--------------------#
+#---- Variables -----#
+#--------------------#   
+diametros = []
+velocidades_extrusora = []
+velocidades_enrolladora = []
+temperaturas = []
+humedades = []
+tiempos = []
+
+
+#--------------------#
 #---- Funciones -----#
 #--------------------#
+# Función para crear figuras de líneas para Plotly
+def crear_figura_lineas(titulo, x_label, y_label, series):
+    """
+    Descripción:
+        Crea una figura de líneas para Plotly a partir de los datos proporcionados.
+    
+    Parámetros:
+        - titulo (str): Título del gráfico.
+        - x_label (str): Etiqueta para el eje X.
+        - y_label (str): Etiqueta para el eje Y.
+        - series (list): Lista de tuplas con los datos para cada serie.
+    
+    Retorno:
+        - dict: Configuración de la figura para Plotly.
 
-# Layout de monitoreo
+    """
+    return {
+        "data": [
+            {
+                "x": x,
+                "y": y,
+                "type": "scatter",
+                "mode": "lines+markers",
+                "name": nombre,
+            }
+            for nombre, x, y in series
+        ],
+        "layout": {
+            "title": {
+                "text": titulo,
+                "font": {"color": "black", "size": 20},
+            },
+            "xaxis": {
+                "title": {"text": x_label, "font": {"color": "black"}},
+                "automargin": True,
+            },
+            "yaxis": {
+                "title": {"text": y_label, "font": {"color": "black"}},
+                "automargin": True,
+            },
+            "template": "plotly_white",
+            "margin": {"t": 80, "l": 80, "r": 40, "b": 80},
+            "paper_bgcolor": "white",
+            "plot_bgcolor": "#f9f9f9",
+        },
+    }
+
+
+# Función para crear el layout de monitoreo
 def monitoreo():
+    """
+    Descripción:
+        Crea el layout para la sección de monitoreo, que incluye gráficos en tiempo real y un feed de video.
+
+    Parámetros:
+        - Ninguno.
+
+    Retorno:
+        - html.Div: Componente de Dash con el layout del monitoreo.
+    """
     return html.Div(
         className='seccion-monitoreo',
         children=[
@@ -51,30 +114,15 @@ def monitoreo():
                     dcc.Graph(
                         id='grafico-diametro',
                         responsive=True,
-                        figure={
-                            'data': [{'x': [1,2,3], 'y':[4,1,2], 'type':'line', 'name':'Diámetro'}],
-                            'layout': {
-                                'title': {
-                                    'text': 'Diámetro en tiempo real',
-                                    'font': {'color': 'black', 'size': 20}
-                                },
-                                'xaxis': {
-                                    'title': {'text': 'Tiempo (s)', 'font': {'color': 'black'}},
-                                    'automargin': True
-                                },
-                                'yaxis': {
-                                    'title': {'text': 'Diámetro (mm)', 'font': {'color': 'black'}},
-                                    'automargin': True
-                                },
-                                'template': 'plotly_white',
-                                'margin': {'t': 80, 'l': 80, 'r': 40, 'b': 80},
-                                'paper_bgcolor': 'white',
-                                'plot_bgcolor': '#f9f9f9'
-                            }
-                        },
-                    className='grafico'),
+                        figure=crear_figura_lineas(
+                            'Diámetro en tiempo real',
+                            'Tiempo (s)',
+                            'Diámetro (mm)',
+                            [('Diámetro', [], [])],
+                        ),
+                        className='grafico',
+                    ),
                     html.Img(id='video-feed', src='/video_feed', className='grafico-img'),
-                    dcc.Interval(id='intervalo-camara',interval=100,n_intervals=0),
                 ]
             ),
 
@@ -84,95 +132,292 @@ def monitoreo():
                     dcc.Graph(
                         id='grafico-temperatura-humedad',
                         responsive=True,
-                        figure={
-                            'data': [{'x': [1,2,3], 'y':[4,1,2], 'type':'line', 'name':'Temperatura y humedad'}],
-                            'layout': {
-                                'title': {
-                                    'text': 'Temperatura y humedad tiempo real',
-                                    'font': {'color': 'black', 'size': 20}
-                                },
-                                'xaxis': {
-                                    'title': {'text': 'Tiempo (s)', 'font': {'color': 'black'}},
-                                    'automargin': True
-                                },
-                                'yaxis': {
-                                    'title': {'text': 'Diámetro (mm)', 'font': {'color': 'black'}},
-                                    'automargin': True
-                                },
-                                'template': 'plotly_white',
-                                'margin': {'t': 80, 'l': 80, 'r': 40, 'b': 80},
-                                'paper_bgcolor': 'white',
-                                'plot_bgcolor': '#f9f9f9'
-                            }
-                        },
+                        figure=crear_figura_lineas(
+                            'Temperatura y humedad tiempo real',
+                            'Tiempo (s)',
+                            'Temperatura / Humedad',
+                            [
+                                ('Temperatura', [], []),
+                                ('Humedad', [], []),
+                            ],
+                        ),
                         className='grafico',
                     ),
                     dcc.Graph(
                         id='grafico-velocidades',
                         responsive=True,
-                        figure={
-                            'data': [{'x': [1,2,3], 'y':[4,1,2], 'type':'line', 'name':'Velocidades'}],
-                            'layout': {
-                                'title': {
-                                    'text': 'Velocidades en tiempo real',
-                                    'font': {'color': 'black', 'size': 20}
-                                },
-                                'xaxis': {
-                                    'title': {'text': 'Tiempo (s)', 'font': {'color': 'black'}},
-                                    'automargin': True
-                                },
-                                'yaxis': {
-                                    'title': {'text': 'Diámetro (mm)', 'font': {'color': 'black'}},
-                                    'automargin': True
-                                },
-                                'template': 'plotly_white',
-                                'margin': {'t': 80, 'l': 80, 'r': 40, 'b': 80},
-                                'paper_bgcolor': 'white',
-                                'plot_bgcolor': '#f9f9f9'
-                            }
-                        },
-                    className='grafico'),
+                        figure=crear_figura_lineas(
+                            'Velocidades en tiempo real',
+                            'Tiempo (s)',
+                            'Velocidad (mm/s)',
+                            [
+                                ('Extrusora', [], []),
+                                ('Enrolladora', [], []),
+                            ],
+                        ),
+                        className='grafico',
+                    ),
                 ]
             ),
         ]
     )
 
 
-# Función de Automatico
+
+FASES_AUTOMATICAS = [
+    {"titulo": "Configuración", "descripcion": "Configura el material y los parámetros base del proceso."},
+    {"titulo": "Temperatura", "descripcion": "Ajusta y aplica la temperatura del calefactor."},
+    {"titulo": "Guiado", "descripcion": "Prepara el guiado del filamento antes de extruir."},
+    {"titulo": "Extrusión", "descripcion": "Ajusta velocidades de extrusora y enrolladora."},
+    {"titulo": "Finalización", "descripcion": "Cierra el proceso de forma ordenada."},
+]
+
+
+# Función para crear los indicadores de fases automáticas
+def crear_indicadores_fases(fase_activa):
+    """
+    Descripción:
+        Crea los indicadores visuales para las fases automáticas, resaltando la fase activa y las completadas.
+    
+    Parámetros:
+        - fase_activa (int): Índice de la fase actualmente activa.
+    
+    Retorno:
+        - list: Lista de componentes html.Div que representan los indicadores de fase.
+    """
+    indicadores = []
+
+    for indice, fase in enumerate(FASES_AUTOMATICAS):
+        activa = indice == fase_activa
+        completada = indice < fase_activa
+
+        indicadores.append(
+            html.Div(
+                [
+                    html.Div(
+                        str(indice + 1),
+                        className=(
+                            'fase_auto fase_auto_activa'
+                            if activa
+                            else 'fase_auto fase_auto_completada'
+                            if completada
+                            else 'fase_auto'
+                        ),
+                    ),
+                    html.Label(
+                        fase['titulo'],
+                        className=(
+                            'label_fase_auto label_fase_auto_activa'
+                            if activa
+                            else 'label_fase_auto'
+                        ),
+                    ),
+                ],
+                className='fila_fase_auto',
+            )
+        )
+
+    return indicadores
+
+
+# Función para crear el contenido de cada fase automática
+def crear_contenido_fase_automatica(fase_activa):
+    """
+    Descripción:
+        Crea el contenido específico para cada fase del proceso automático, incluyendo controles y descripciones.
+    
+    Parámetros:
+        - fase_activa (int): Índice de la fase actualmente activa.
+    
+    Retorno:
+        - html.Div: Componente de Dash con el contenido de la fase activa.
+    """
+    fase = FASES_AUTOMATICAS[fase_activa]
+
+    if fase_activa == 0:
+        controles = [
+            html.Div(
+                [
+                    html.Label("Material"),
+                    dcc.Dropdown(
+                        id='auto-material',
+                        options=[
+                            {'label': 'PLA', 'value': 'PLA'},
+                            {'label': 'ABS', 'value': 'ABS'}
+                        ],
+                        value='PLA',
+                        clearable=False,
+                    ),
+                ],
+                className='campo_auto',
+            ),
+            html.Div(
+                [
+                    html.Label("Tiempo de proceso (min)"),
+                    dcc.Input(id='auto-tiempo', type='number', min=1, step=1, value=10),
+                ],
+                className='campo_auto',
+            ),
+            html.Div(
+                [
+                    html.Label("Diámetro objetivo (mm)"),
+                    dcc.Input(id='auto-diametro-objetivo', type='number', min=0.1, step=0.01, value=1.75),
+                ],
+                className='campo_auto',
+            ),
+        ]
+
+    elif fase_activa == 1:
+        controles = [
+            html.H4("Temperatura del calefactor"),
+            dcc.Slider(
+                id='auto-temperatura',
+                min=100,
+                max=400,
+                step=1,
+                value=200,
+                marks={
+                    100: '100°C',
+                    180: '180°C',
+                    220: '220°C',
+                    250: '250°C',
+                    360: '360°C',
+                    400: '400°C',
+                },
+                included=False,
+                tooltip={"placement": "bottom", "always_visible": True},
+            ),
+            html.Div(
+                [
+                    html.Button("ON", id='auto-aplicar-temperatura', n_clicks=0, className='btn-on'),
+                    html.Button("OFF", id='auto-apagar-temperatura', n_clicks=0, className='btn-off'),
+                ],
+                className='contenedor-botones',
+            ),
+        ]
+
+    elif fase_activa == 2:
+        controles = [
+            html.H4("Guiado del filamento"),
+            html.Div(
+                [
+                    html.Label("Modo de guiado"),
+                    dcc.Dropdown(
+                        id='auto-modo-guiado',
+                        options=[
+                            {'label': 'Manual asistido', 'value': 'manual_asistido'},
+                        ],
+                        value='manual_asistido',
+                        clearable=False,
+                    ),
+                ],
+                className='campo_auto',
+            ),
+        ]
+
+    elif fase_activa == 3:
+        controles = [
+            html.H4("Extrusion"),
+            html.Div(
+                [
+                    html.Div(id='auto-tiempo-restante', children='Tiempo restante: 00:00'),
+                ],
+                className='contenedor-botones',
+            ),
+        ]
+
+    else:
+        controles = [
+            html.H4("Finalización del proceso"),
+            dcc.Checklist(
+                id='auto-finalizacion-checklist',
+                options=[
+                    {'label': 'Apagar calefactor', 'value': 'calefactor'},
+                    {'label': 'Detener motores', 'value': 'motores'},
+                    {'label': 'Desactivar láser', 'value': 'laser'},
+                ],
+                value=['calefactor', 'motores', 'laser'],
+            ),
+            html.Div(
+                [
+                    html.Button("Finalizar proceso", id='auto-finalizar-proceso', n_clicks=0, className='btn-off'),
+                ],
+                className='contenedor-botones',
+            ),
+        ]
+
+    return html.Div(
+        [
+            html.H3(f"Fase {fase_activa + 1}: {fase['titulo']}"),
+            html.P(fase['descripcion']),
+            html.Div(controles, className='controles_fase_auto'),
+        ],
+        className='contenedor_fase_auto',
+    )
+
+# Función para crear el layout de automático
 def automatico():
+    """
+    Descripción:
+        Crea el layout para la sección de operación automática, que incluye indicadores de fase y contenido específico para cada fase del proceso.
+    
+    Parámetros:
+        - Ninguno.
+
+    Retorno:
+        - html.Div: Componente de Dash con el layout de la operación automática.
+    """
     return html.Div(
         className='contenedor_fases',
         children=[
-            html.Div([
-                html.Label("1", className='fase_auto'),
-                html.Label("Configuración"),
-            ], className='fila_fase_auto'),
+            dcc.Store(id='store-fase-automatica', data=0),
 
-            html.Div([
-                html.Label("2", className='fase_auto'),
-                html.Label("Calentamiento"),
-            ], className='fila_fase_auto'),
+            html.Div(
+                id='indicadores-fases-auto',
+                className='indicadores_fases_auto',
+                children=crear_indicadores_fases(0),
+            ),
 
-            html.Div([
-                html.Label("3", className='fase_auto'),
-                html.Label("Guiado"),
-            ], className='fila_fase_auto'),
+            html.Div(
+                id='contenedor-fase-auto',
+                children=crear_contenido_fase_automatica(0),
+            ),
 
-            html.Div([
-                html.Label("4", className='fase_auto'),
-                html.Label("Extrusión"),
-            ], className='fila_fase_auto'),
-
-            html.Div([
-                html.Label("5", className='fase_auto'),
-                html.Label("Finalización"),
-            ], className='fila_fase_auto'),
+            html.Div(
+                [
+                    html.Button(
+                        "Anterior",
+                        id='btn-fase-anterior',
+                        n_clicks=0,
+                        className='boton_menu',
+                        style={'display': 'none'},
+                    ),
+                    html.Button(
+                        "Siguiente",
+                        id='btn-fase-siguiente',
+                        n_clicks=0,
+                        className='boton_menu',
+                        style={'display': 'inline-block'},
+                    ),
+                ],
+                className='navegacion_fases_auto',
+            ),
         ]
     )
 
 
-# Función de Manual
+# Función para crear el layout de manual
 def manual():
+    """
+    Descripción:
+        Crea el layout para la sección de operación manual, que incluye controles para ajustar la temperatura y velocidad de la extrusora.
+    
+    Parámetros:
+        - Ninguno.
+
+    Retorno:
+        - html.Div: Componente de Dash con el layout de la operación manual.
+    """
     return html.Div(
         children=[
             html.Div(
@@ -288,9 +533,10 @@ def manual():
     className='seccion_manual')
 
 
-# LAYOUT PRINCIPAL
+#----------------------------#
+# --- Layouts y Callbacks ---#
+# ---------------------------#
 app.layout = html.Div([
-    # PANEL LATERAL
     html.Div([
         html.Div(
             [
@@ -305,7 +551,7 @@ app.layout = html.Div([
                 html.Div(
                     [
                         html.Label("Diámetro"),
-                        html.Span("0.00", className="display")
+                        html.Span("0.00", id="diametro-display", className="display")
                     ],
                 className='label-display-parametros'),
 
@@ -375,9 +621,10 @@ app.layout = html.Div([
     ],
     className='contenedor_lateral'),
 
-    # CONTENIDO DERECHO
     html.Div([
-        html.Div(id='contenido', children=monitoreo()), 
+        html.Div(id='seccion-monitoreo', children=monitoreo(), style={'display': 'block'}),
+        html.Div(id='seccion-automatico', children=automatico(), style={'display': 'none'}),
+        html.Div(id='seccion-manual', children=manual(), style={'display': 'none'}),
         html.Div(
             [
                 html.P(f"[{datetime.now().strftime('%H:%M:%S')}] > Sistema iniciado..."),
@@ -387,17 +634,97 @@ app.layout = html.Div([
     ],
     className='contenedor_contenido_menu'),
 
-    #MEMORIA
     dcc.Store(id='store-graficos', storage_type='memory'), 
     dcc.Store(id='store-estado-maquina', storage_type='memory'),
+    dcc.Interval(id='intervalo-diametro', interval=100, n_intervals=0),
 ],
 className='contenedor_principal')
 
 
+# Callback para actualizar el display de diámetro y el gráfico en tiempo real
+@app.callback(
+    Output("diametro-display", "children"),
+    Output("grafico-diametro", "figure"),
+    Input("intervalo-diametro", "n_intervals"),
+    prevent_initial_call=False
+)
+def actualizar_diametro_display(n):
+    valor_diametro = camara.diametro_mm
+
+    if valor_diametro is None:
+        valor_diametro = 0.0
+
+    diametros.append(valor_diametro)
+    tiempos.append(n * 0.1)
+
+    max_puntos = 100
+    if len(diametros) > max_puntos:
+        del diametros[:-max_puntos]
+        del tiempos[:-max_puntos]
+
+    figura = crear_figura_lineas(
+        'Diámetro en tiempo real',
+        'Tiempo (s)',
+        'Diámetro (mm)',
+        [('Diámetro', tiempos, diametros)],
+    )
+
+    return f"{valor_diametro:.2f}", figura
+
+
+# CALLBACK FASES AUTOMÁTICAS
+@callback(
+    Output('store-fase-automatica', 'data'),
+    Input('btn-fase-anterior', 'n_clicks'),
+    Input('btn-fase-siguiente', 'n_clicks'),
+    State('store-fase-automatica', 'data'),
+    prevent_initial_call=True
+)
+def cambiar_fase_automatica(n_anterior, n_siguiente, fase_actual):
+    if fase_actual is None:
+        fase_actual = 0
+
+    id_disparador = ctx.triggered_id
+
+    if id_disparador == 'btn-fase-anterior':
+        return max(fase_actual - 1, 0)
+
+    if id_disparador == 'btn-fase-siguiente':
+        return min(fase_actual + 1, len(FASES_AUTOMATICAS) - 1)
+
+    return fase_actual
+
+
+@callback(
+    Output('indicadores-fases-auto', 'children'),
+    Output('contenedor-fase-auto', 'children'),
+    Output('btn-fase-anterior', 'style'),
+    Output('btn-fase-siguiente', 'style'),
+    Input('store-fase-automatica', 'data')
+)
+def actualizar_fase_automatica(fase_activa):
+    if fase_activa is None:
+        fase_activa = 0
+
+    fase_activa = max(0, min(fase_activa, len(FASES_AUTOMATICAS) - 1))
+
+    estilo_boton_visible = {'display': 'inline-block'}
+    estilo_boton_oculto = {'display': 'none'}
+
+    return (
+        crear_indicadores_fases(fase_activa),
+        crear_contenido_fase_automatica(fase_activa),
+        estilo_boton_oculto if fase_activa == 0 else estilo_boton_visible,
+        estilo_boton_oculto if fase_activa == len(FASES_AUTOMATICAS) - 1 else estilo_boton_visible,
+    )
+
+
 # CALLBACK MENU LATERAL
 @callback(
-    Output('contenido', 'children'),
-    Output('log-sistema', 'children', ),
+    Output('seccion-monitoreo', 'style'),
+    Output('seccion-automatico', 'style'),
+    Output('seccion-manual', 'style'),
+    Output('log-sistema', 'children'),
     Input('btn-monitoreo', 'n_clicks'),
     Input('btn-automatico', 'n_clicks'),
     Input('btn-manual', 'n_clicks'),
@@ -410,24 +737,27 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
 
     id_disparador = ctx.triggered_id
     hora = datetime.now().strftime('%H:%M:%S')
-    
+
+    estilo_visible = {'display': 'block'}
+    estilo_oculto = {'display': 'none'}
+
     if id_disparador == 'btn-monitoreo':
-        contenido = monitoreo()
         msg = "Sección: Monitoreo cargada."
+        estilos = (estilo_visible, estilo_oculto, estilo_oculto)
 
     elif id_disparador == 'btn-automatico':
-        if can_com.bus is None and not can_com.modo_simulado:
+        if can_com.bus is not None and not can_com.modo_simulado:
             can_com.enviar_mensaje(0x201, "AUTO")
             respuesta = can_com.get_mensaje()
             exito = respuesta and respuesta[1] == "OK"
             msg = f"Sección: Automático cargada. {'Modo automático activado en uC.' if exito else 'Error al activar modo automático en uC.'}"
         else:
-            msg = "Sección: Automático cargada. Modo SIMULADO activo, no se envió comando al uC."
+            msg = "Sección: Automático cargada."
 
-        contenido = automatico()
+        estilos = (estilo_oculto, estilo_visible, estilo_oculto)
 
     elif id_disparador == 'btn-manual':
-        if can_com.bus is None and not can_com.modo_simulado:
+        if can_com.bus is not None and not can_com.modo_simulado:
             can_com.enviar_mensaje(0x202, "MANUAL")
             respuesta = can_com.get_mensaje()
             exito = respuesta and respuesta[1] == "OK"
@@ -435,13 +765,13 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
         else:
             msg = "Sección: Manual cargada. Modo SIMULADO activo, no se envió comando al uC."
 
-        contenido = manual()
+        estilos = (estilo_oculto, estilo_oculto, estilo_visible)
 
     else:
-        return ctx.no_update, ctx.no_update
+        return no_update, no_update, no_update, no_update
 
     logs_actuales.append(html.P(f"[{hora}] > {msg}"))
-    return contenido, logs_actuales
+    return estilos[0], estilos[1], estilos[2], logs_actuales
 
 
 # CALLBACK BOTONES MANUAL
@@ -472,8 +802,6 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
     id_disparador = ctx.triggered_id
     hora = datetime.now().strftime('%H:%M:%S')
 
-    # Inicializamos todas las salidas como no_update
-    # Esto evita el UnboundLocalError si no se entra en un IF específico
     calefactor_estado = no_update
     motor_extrusora_estado = no_update
     motor_enrolladora_estado = no_update
@@ -577,11 +905,11 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
         logs_actuales.append(html.P(f"[{hora}] > Apagando Láser"))
         laser_estado = [html.Label("Láser"), html.Div(className='led-off')]
 
-    # Si no hubo disparador válido (aunque prevent_initial_call debería evitarlo)
     else:
         return no_update, no_update, no_update, no_update, no_update
 
     return logs_actuales, calefactor_estado, motor_extrusora_estado, motor_enrolladora_estado, laser_estado
+
 
 # Función para alimentar el video en tiempo real
 @server.route('/video_feed')
@@ -592,6 +920,7 @@ def video_feed():
     )
 
 
+# Callback para parada de emergencia: apaga todo y actualiza estados
 @app.callback(
     Output('log-sistema', 'children', allow_duplicate=True),
     Output('calefactor-estado', 'children', allow_duplicate=True),
@@ -613,6 +942,7 @@ def parada_emergencia(n_clicks, logs_actuales):
     motor_extrusora_estado = no_update
     motor_enrolladora_estado = no_update
     laser_estado = no_update
+    exito = False
 
     if id_disparador == 'btn-parada' and n_clicks:
         if can_com.bus is None and not can_com.modo_simulado:

@@ -36,7 +36,6 @@ class CAN_COM:
             return
 
         try:
-            # Intentar abrir la interfaz CAN
             self.bus = can.interface.Bus(channel=channel, interface=interface)
             print(f"CAN inicializado correctamente en {channel}")
 
@@ -58,7 +57,6 @@ class CAN_COM:
         Retorno:
             bool: True si la interfaz existe, False en caso contrario.
         """
-        # Utiliza el comando 'ip link show <channel>' para verificar la existencia de la interfaz
         resultado = subprocess.run(
             ["ip", "link", "show", channel],
             stdout=subprocess.DEVNULL,
@@ -125,7 +123,6 @@ class CAN_COM:
         """
         if self.modo_simulado:
             print(f"[CAN SIMULADO] ID: {hex(arbitration_id)} DATA: {data_str}")
-            # En modo simulado, simplemente se imprime el mensaje y se agrega a la cola como si fuera recibido
             self.queue.put((arbitration_id, "OK"))
             return True
 
@@ -134,9 +131,7 @@ class CAN_COM:
             return False
 
         try:
-            # Asegurarse de que los datos no excedan los 8 bytes permitidos por CAN
             data_bytes = data_str.encode('utf-8')[:8]
-            # Construir el mensaje CAN y enviarlo
             msg = can.Message(arbitration_id=arbitration_id, data=data_bytes, is_extended_id=False)
             self.bus.send(msg)
             return True
@@ -164,7 +159,6 @@ class CAN_COM:
             return
 
         self._running = True
-        # Iniciar el hilo de recepción de mensajes
         self._thread = threading.Thread(target=self.recepcion_mensajes,daemon=True)
         self._thread.start()
 
