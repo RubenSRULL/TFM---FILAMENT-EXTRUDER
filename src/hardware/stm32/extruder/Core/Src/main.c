@@ -54,7 +54,7 @@ UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 /* Variables interrupcion Hall */
-volatile uint8_t hall_event_flag = 0;
+//volatile uint8_t hall_event_flag = 0;
 
 
 /* USER CODE END PV */
@@ -69,7 +69,23 @@ static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
+void I2C_Scan(void)
+{
+    char msg[64];
 
+    HAL_UART_Transmit(&huart1, (uint8_t*)"\r\nI2C scan start\r\n", 18, 100);
+
+    for (uint8_t addr = 1; addr < 127; addr++)
+    {
+        if (HAL_I2C_IsDeviceReady(&hi2c1, addr << 1, 2, 10) == HAL_OK)
+        {
+            snprintf(msg, sizeof(msg), "I2C device found at 0x%02X\r\n", addr);
+            HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
+        }
+    }
+
+    HAL_UART_Transmit(&huart1, (uint8_t*)"I2C scan end\r\n", 14, 100);
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -115,8 +131,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   /* Iniciar interrupcion sensor Hall */
-  HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
-
+//  HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
+  I2C_Scan();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -154,11 +170,13 @@ int main(void)
 	  HAL_Delay(1000);
 	  */
 
+	  /*
 	  if (hall_event_flag)
 	  {
 		  hall_event_flag = 0;
 		  HAL_UART_Transmit(&huart1, (uint8_t*)"HALL PULSE\r\n", 12, 100);
 	  }
+	  */
 
 
 
@@ -568,13 +586,13 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 /* Callback interrupcion sensor Hall */
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
-    if (htim->Instance == TIM1)
-    {
-        hall_event_flag = 1;
-    }
-}
+//void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+//{
+//    if (htim->Instance == TIM1)
+//    {
+//        hall_event_flag = 1;
+//    }
+//}
 /* USER CODE END 4 */
 
 /* USER CODE END 4 */
