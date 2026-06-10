@@ -125,6 +125,7 @@ int main(void)
 	  HAL_Delay(1000);
 	  */
 
+	  /*
 	  char msg[100];
 
 	  snprintf(msg, sizeof(msg),
@@ -136,7 +137,14 @@ int main(void)
 
 	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
 	  HAL_Delay(1000);
+	  */
 
+	  HAL_GPIO_WritePin(SSR_GPIO_Port, SSR_Pin, GPIO_PIN_SET);
+	  HAL_UART_Transmit(&huart1, (uint8_t*)"SSR ON\r\n", 8, 100);
+	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(SSR_GPIO_Port, SSR_Pin, GPIO_PIN_RESET);
+	  HAL_UART_Transmit(&huart1, (uint8_t*)"SSR OFF\r\n", 9, 100);
+	  HAL_Delay(1000);
 
 
 
