@@ -53,6 +53,9 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+/* Variables interrupcion Hall */
+volatile uint8_t hall_event_flag = 0;
+
 
 /* USER CODE END PV */
 
@@ -111,6 +114,9 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Iniciar interrupcion sensor Hall */
+  HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -139,13 +145,20 @@ int main(void)
 	  HAL_Delay(1000);
 	  */
 
+	  /*
 	  HAL_GPIO_WritePin(SSR_GPIO_Port, SSR_Pin, GPIO_PIN_SET);
 	  HAL_UART_Transmit(&huart1, (uint8_t*)"SSR ON\r\n", 8, 100);
 	  HAL_Delay(1000);
 	  HAL_GPIO_WritePin(SSR_GPIO_Port, SSR_Pin, GPIO_PIN_RESET);
 	  HAL_UART_Transmit(&huart1, (uint8_t*)"SSR OFF\r\n", 9, 100);
 	  HAL_Delay(1000);
+	  */
 
+	  if (hall_event_flag)
+	  {
+		  hall_event_flag = 0;
+		  HAL_UART_Transmit(&huart1, (uint8_t*)"HALL PULSE\r\n", 12, 100);
+	  }
 
 
 
@@ -554,6 +567,15 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* Callback interrupcion sensor Hall */
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM1)
+    {
+        hall_event_flag = 1;
+    }
+}
+/* USER CODE END 4 */
 
 /* USER CODE END 4 */
 
