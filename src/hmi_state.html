@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>HMI Extrusora</title>
+
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+  startOnLoad: true,
+  theme: "base",
+  themeVariables: {
+    primaryColor: "#2b2b2b",
+    primaryTextColor: "#ffffff",
+    primaryBorderColor: "#888888",
+    lineColor: "#888888",
+    secondaryColor: "#2b2b2b",
+    tertiaryColor: "#2b2b2b"
+  }
+});
+</script>
+
+<style>
+body {
+  background: #111;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+.panel {
+  border: 1px solid #444;
+  padding: 16px;
+  margin: 16px;
+  border-radius: 10px;
+  background: #1b1b1b;
+}
+
+button {
+  margin: 4px;
+  padding: 8px 12px;
+}
+
+/* Estado normal */
+.node rect {
+  fill: #2b2b2b !important;
+  stroke: #888 !important;
+  stroke-width: 2px !important;
+}
+
+/* Estado activo */
+.node.active rect {
+  fill: #007acc !important;
+  stroke: #ffffff !important;
+  stroke-width: 4px !important;
+}
+
+/* Estado warning */
+.node.warning rect {
+  fill: #cc8800 !important;
+  stroke: #ffffff !important;
+  stroke-width: 4px !important;
+}
+
+/* Estado alarma */
+.node.alarm rect {
+  fill: #cc2222 !important;
+  stroke: #ffffff !important;
+  stroke-width: 4px !important;
+}
+</style>
+</head>
+
+<body>
+
+<div class="panel">
+  <h2>Máquina de estados STM32</h2>
+  <p>Estado actual: <span id="process_state_text">IDLE</span></p>
+
+  <pre class="mermaid" id="process_diagram">
+stateDiagram-v2
+    [*] --> BOOT
+    BOOT --> IDLE: init_ok
+    BOOT --> ALARM: init_fault
+
+    IDLE --> AUTO_INIT: start_auto_cmd
+    IDLE --> MANUAL_CONTROL: set_manual_cmd
+
+    AUTO_INIT --> AUTO_PREHEAT: init_auto_ok
+    AUTO_INIT --> IDLE: cancel
+    AUTO_INIT --> ALARM: init_fault
+
+    AUTO_PREHEAT --> AUTO_READY: temperature_ok
+    AUTO_PREHEAT --> STOPPING: stop_cmd
+    AUTO_PREHEAT --> ALARM: fault
+
+    AUTO_READY --> AUTO_EXTRUDING: extrude_ok
+    AUTO_READY --> AUTO_PREHEAT: temperature_lost
+    AUTO_READY --> STOPPING: stop_cmd
+    AUTO_READY --> ALARM: fault
+
+    AUTO_EXTRUDING --> STOPPING: stop_cmd
+    AUTO_EXTRUDING --> ALARM: fault
+
+    MANUAL_CONTROL --> STOPPING: stop_cmd
+    MANUAL_CONTROL --> AUTO_INIT: start_auto_cmd
+    MANUAL_CONTROL --> ALARM: fault
+
+    STOPPING --> IDLE: outputs_ok
+
+    ALARM --> IDLE: reset_alarm_cmd_ok
+  </pre>
+</div>
+
+<div class="panel">
+  <button onclick="updateProcessState('BOOT')">BOOT</button>
+  <button onclick="updateProcessState('IDLE')">IDLE</button>
+  <button onclick="updateProcessState('AUTO_INIT')">AUTO INIT</button>
+  <button onclick="updateProcessState('AUTO_PREHEAT')">AUTO PREHEAT</button>
+  <button onclick="updateProcessState('AUTO_READY')">AUTO READY</button>
+  <button onclick="updateProcessState('AUTO_EXTRUDING')">AUTO EXTRUDING</button>
+  <button onclick="updateProcessState('MANUAL_CONTROL')">MANUAL</button>
+  <button onclick="updateProcessState('STOPPING')">STOPPING</button>
+  <button onclick="updateProcessState('ALARM')">ALARM</button>
+</div>
+
+<script>
+function clearActiveStates() {
+  document.querySelectorAll(".node").forEach(node => {
+    node.classList.remove("active", "warning", "alarm");
+  });
+}
+
+function updateProcessState(state) {
+  clearActiveStates();
+
+  const nodes = document.querySelectorAll(".node");
+
+  nodes.forEach(node => {
+    const text = node.innerText || node.textContent;
+
+    if (text.trim() === state) {
+      if (state === "ALARM") {
+        node.classList.add("alarm");
+      } else if (state === "STOPPING") {
+        node.classList.add("warning");
+      } else {
+        node.classList.add("active");
+      }
+    }
+  });
+
+  document.getElementById("process_state_text").innerText = state;
+}
+
+// Esperar a que Mermaid renderice
+setTimeout(() => {
+  updateProcessState("IDLE");
+}, 500);
+</script>
+
+</body>
+</html>

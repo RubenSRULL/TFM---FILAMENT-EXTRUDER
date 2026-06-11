@@ -1,0 +1,4 @@
+../Core/Src/state_machine.c:23:20:State_ToString	10
+../Core/Src/state_machine.c:61:13:State_PrintIfChanged	2
+../Core/Src/state_machine.c:78:6:StateMachine_Init	1
+../Core/Src/state_machine.c:87:6:StateMachine_Control	34
