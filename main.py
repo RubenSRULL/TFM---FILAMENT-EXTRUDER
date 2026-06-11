@@ -24,6 +24,18 @@ from src.backend.CAN_COM import CAN_COM
 from gpiozero import LED
 
 
+# ------------------ #
+# --- Constantes --- #
+# ------------------ #
+FASES_AUTOMATICAS = [
+    {"titulo": "Configuración", "descripcion": "Configura el material y los parámetros base del proceso."},
+    {"titulo": "Temperatura", "descripcion": "Ajusta y aplica la temperatura del calefactor."},
+    {"titulo": "Guiado", "descripcion": "Prepara el guiado del filamento antes de extruir."},
+    {"titulo": "Extrusión", "descripcion": "Ajusta velocidades de extrusora y enrolladora."},
+    {"titulo": "Finalización", "descripcion": "Cierra el proceso de forma ordenada."},
+]
+
+
 #------------------#
 #---- Objetos -----#
 #------------------#    
@@ -170,16 +182,6 @@ def monitoreo():
             ),
         ]
     )
-
-
-
-FASES_AUTOMATICAS = [
-    {"titulo": "Configuración", "descripcion": "Configura el material y los parámetros base del proceso."},
-    {"titulo": "Temperatura", "descripcion": "Ajusta y aplica la temperatura del calefactor."},
-    {"titulo": "Guiado", "descripcion": "Prepara el guiado del filamento antes de extruir."},
-    {"titulo": "Extrusión", "descripcion": "Ajusta velocidades de extrusora y enrolladora."},
-    {"titulo": "Finalización", "descripcion": "Cierra el proceso de forma ordenada."},
-]
 
 
 # ::::: Función para crear los indicadores de fases automáticas :::::
@@ -363,6 +365,7 @@ def crear_contenido_fase_automatica(fase_activa):
         ],
         className='contenedor_fase_auto',
     )
+
 
 # ::::: Función para crear el layout de automático :::::
 def automatico():
@@ -659,11 +662,14 @@ className='contenedor_principal')
     prevent_initial_call=False
 )
 def actualizar_diametro_display(n):
+    # Obtener el diámetro actual almacenado en la clase CAMARA_HQ
     valor_diametro = camara.diametro_mm
 
+    # Si el valor es None mostrar 0.00
     if valor_diametro is None:
         valor_diametro = 0.0
 
+    # Actualizar las listas de datos para el gráfico
     diametros.append(valor_diametro)
     tiempos.append(n * 0.1)
 
@@ -672,6 +678,7 @@ def actualizar_diametro_display(n):
         del diametros[:-max_puntos]
         del tiempos[:-max_puntos]
 
+    # Crear la figura del gráfico con los datos actualizados
     figura = crear_figura_lineas(
         'Diámetro en tiempo real',
         'Tiempo (s)',
@@ -679,6 +686,7 @@ def actualizar_diametro_display(n):
         [('Diámetro', tiempos, diametros)],
     )
 
+    # Devolver el valor formateado para el display y la figura actualizada para el gráfico
     return f"{valor_diametro:.2f}", figura
 
 
@@ -699,15 +707,20 @@ def actualizar_diametro_display(n):
     prevent_initial_call=True
 )
 def cambiar_fase_automatica(n_anterior, n_siguiente, fase_actual):
+    # Si fase_actual es None, inicializamos en 0
     if fase_actual is None:
         fase_actual = 0
 
+    # Determinar qué botón fue el que se presiono
     id_disparador = ctx.triggered_id
 
+    # Actualizar la fase actual según el botón presionado
     if id_disparador == 'btn-fase-anterior':
+        # Restamos 1 a la fase actual (no permitir que sea menor a 0)
         return max(fase_actual - 1, 0)
 
     if id_disparador == 'btn-fase-siguiente':
+        # Sumamos 1 a la fase actual (no permitir que sea mayor al número de fases - 1)
         return min(fase_actual + 1, len(FASES_AUTOMATICAS) - 1)
 
     return fase_actual
@@ -724,11 +737,13 @@ def actualizar_fase_automatica(fase_activa):
     if fase_activa is None:
         fase_activa = 0
 
+    # Asegurarse de que fase_activa esté dentro de los límites válidos
     fase_activa = max(0, min(fase_activa, len(FASES_AUTOMATICAS) - 1))
 
     estilo_boton_visible = {'display': 'inline-block'}
     estilo_boton_oculto = {'display': 'none'}
 
+    # Actualizar los indicadores de fase, el contenido de la fase activa y la visibilidad de los botones de navegación
     return (
         crear_indicadores_fases(fase_activa),
         crear_contenido_fase_automatica(fase_activa),
@@ -753,12 +768,14 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
     if logs_actuales is None:
         logs_actuales = []
 
+    # Determinar qué botón fue el que se presiono
     id_disparador = ctx.triggered_id
     hora = datetime.now().strftime('%H:%M:%S')
 
     estilo_visible = {'display': 'block'}
     estilo_oculto = {'display': 'none'}
 
+    # Actualizar la visibilidad de las secciones y agregar un mensaje al log según la sección seleccionada
     if id_disparador == 'btn-monitoreo':
         msg = "Sección: Monitoreo cargada."
         estilos = (estilo_visible, estilo_oculto, estilo_oculto)
@@ -817,15 +834,17 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
     if logs_actuales is None:
         logs_actuales = []
 
+    # Determinar qué botón fue el que se presiono
     id_disparador = ctx.triggered_id
     hora = datetime.now().strftime('%H:%M:%S')
 
+    # Inicializar los estados como no_update para solo actualizar el que corresponda
     calefactor_estado = no_update
     motor_extrusora_estado = no_update
     motor_enrolladora_estado = no_update
     laser_estado = no_update
 
-    # --- LÓGICA DE CALEFACTOR ---
+    # Lógica para cada botón, verificando la comunicación CAN antes de enviar comandos y actualizando los logs y estados visuales según la respuesta del uC
     if id_disparador == "temperatura-on" and n_on1:
         if can_com.bus is None and not can_com.modo_simulado:
             logs_actuales.append(html.P(f"[{hora}] > Error: Comunicación CAN no disponible. No se puede encender el calefactor."))
@@ -838,7 +857,6 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
             calefactor_estado = [html.Label("Calefactor"), html.Div(className='led-on' if exito else 'led-off')]
         
         return logs_actuales, calefactor_estado, no_update, no_update, no_update
-
 
     elif id_disparador == "temperatura-off" and n_off1:
         if can_com.bus is None and not can_com.modo_simulado:
@@ -853,8 +871,6 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
         
         return logs_actuales, calefactor_estado, no_update, no_update, no_update
 
-
-    # --- LÓGICA DE EXTRUSORA ---
     elif id_disparador == "velocidad-extrusora-on" and n_on2:
         if can_com.bus is None and not can_com.modo_simulado:
             logs_actuales.append(html.P(f"[{hora}] > Error: Comunicación CAN no disponible. No se puede encender el motor de extrusora."))
@@ -867,7 +883,6 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
             motor_extrusora_estado = [html.Label("Motor Extrusora"), html.Div(className='led-on' if exito else 'led-off')]
         
         return logs_actuales, no_update, motor_extrusora_estado, no_update, no_update
-
 
     elif id_disparador == "velocidad-extrusora-off" and n_off2:
         if can_com.bus is None and not can_com.modo_simulado:
@@ -882,8 +897,6 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
 
         return logs_actuales, no_update, motor_extrusora_estado, no_update, no_update
 
-
-    # --- LÓGICA DE ENROLLADORA ---
     elif id_disparador == "velocidad-enrolladora-on" and n_on3:
         if can_com.bus is None and not can_com.modo_simulado:
             logs_actuales.append(html.P(f"[{hora}] > Error: Comunicación CAN no disponible. No se puede encender el motor de enrolladora."))
@@ -897,7 +910,6 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
         
         return logs_actuales, no_update, no_update, motor_enrolladora_estado, no_update
         
-
     elif id_disparador == "velocidad-enrolladora-off" and n_off3:
         if can_com.bus is None and not can_com.modo_simulado:
             logs_actuales.append(html.P(f"[{hora}] > Error: Comunicación CAN no disponible. No se puede apagar el motor de enrolladora."))
@@ -911,8 +923,6 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
         
         return logs_actuales, no_update, no_update, motor_enrolladora_estado, no_update
     
-
-    # --- LÓGICA DE LÁSER ---
     elif id_disparador == "laser-on" and n_on4:
         laser.on()
         logs_actuales.append(html.P(f"[{hora}] > Encendiendo Láser"))
@@ -932,6 +942,7 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
 # ::::: Función para alimentar el video en tiempo real ::::: #
 @server.route('/video_feed')
 def video_feed():
+    # La función generate_frames() de la clase CAMARA_HQ devuelve un generador que produce los frames del video en formato JPEG.
     return Response(
         camara.generate_frames(),
         mimetype='multipart/x-mixed-replace; boundary=frame'
@@ -953,15 +964,18 @@ def parada_emergencia(n_clicks, logs_actuales):
     if logs_actuales is None:
         logs_actuales = []
 
+    # Determinar qué botón fue el que se presiono
     id_disparador = ctx.triggered_id
     hora = datetime.now().strftime('%H:%M:%S')
 
+    # Inicializar los estados como no_update para solo actualizar los que correspondan
     calefactor_estado = no_update
     motor_extrusora_estado = no_update
     motor_enrolladora_estado = no_update
     laser_estado = no_update
     exito = False
 
+    # Verificar la comunicación CAN antes de enviar el comando de parada de emergencia y actualizar los logs y estados visuales según la respuesta del uC
     if id_disparador == 'btn-parada' and n_clicks:
         if can_com.bus is None and not can_com.modo_simulado:
             logs_actuales.append(html.P(f"[{hora}] > Error: Comunicación CAN no disponible. No se puede activar la parada de emergencia."))
