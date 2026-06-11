@@ -1,3 +1,33 @@
+# Autor: Rubén Sahuquillo Redondo
+
+# Descripción:
+# - Este módulo define la clase CAMARA_HQ, que se encarga de manejar la cámara HQ de Raspberry Pi
+#   para medir el diámetro del filamento en tiempo real.
+
+# Flujo del programa:
+# 1. Se inicializa la cámara y se configuran los parámetros.
+
+# 2. Se lanzan tres hilos:
+#    - Hilo de captura: Captura frames continuamente de la cámara y los guarda en self.frame_actual.
+#    - Hilo de medición: Mide el diámetro del filamento usando la ROI vertical del láser y actualiza
+#      self.diametro_mm, self.diametro_y1, self.diametro_y2.
+#    - Hilo de preparación web: Prepara el JPEG para la web en segundo plano, dibujando la ROI del láser
+#      y el diámetro detectado, y lo guarda en self.jpeg_actual.
+
+# 3. La función generate_frames() es un generador que produce los frames JPEG formateados para el streaming web,
+#   accediendo a self.jpeg_actual.
+
+# 4. El método __calculate_diameter_from_roi() procesa la ROI del láser para detectar el diámetro del filamento,
+#   devolviendo el diámetro en mm y las coordenadas verticales detectadas.
+
+# 5. El método __send_diameter() se encarga de imprimir el diámetro calculado si verbose es True.
+
+# Nota: Se han implementado locks para proteger el acceso a las variables compartidas entre hilos y evitar condiciones de carrera.
+
+
+#------------------#
+#---- Módulos -----#
+#------------------#
 from picamera2 import Picamera2
 import time
 import cv2
@@ -5,6 +35,9 @@ import numpy as np
 import threading
 
 
+#----------------#
+#---- Clase -----#
+#----------------#
 class CAMARA_HQ:
     # -----Constructor que inicializa la cámara-----#
     def __init__(self, factor_mm_por_pixel=1.00, x_laser=640, ancho_roi=80, web_fps=15, web_width=640, web_height=360, jpeg_quality=50, verbose=False):
@@ -55,8 +88,22 @@ class CAMARA_HQ:
         self.print_interval = 0.20
 
         try:
+            # Inicialización de la cámara
             self.picam2 = Picamera2()
-            self.configurar()
+
+            config = {
+                "main": {"size": (1280, 720), "format": "RGB888"},
+                "controls": {
+                    "AeEnable": True,
+                    "AwbEnable": True,
+                    "Brightness": 0.0,
+                    "Contrast": 1.0,
+                    "Sharpness": 1.0,
+                    "Saturation": 1.0
+                }
+            }
+            self.__configurar(config)
+
             self.picam2.start()
             time.sleep(2)
 
@@ -81,25 +128,18 @@ class CAMARA_HQ:
 
 
     # -----Configuración de la cámara-----#
-    def configurar(self):
+    def __configurar(self, config):
         """
         Descripción:
             Configura la cámara con una resolución de 1280x720 y ajustes automáticos de exposición e iluminación.
         Parametros:
-            - No recibe parámetros, pero configura la cámara con los ajustes necesarios para la medición.
+            - config: Diccionario con la configuración de la cámara.
         Retorna:
             - No retorna nada, pero deja la cámara lista para capturar frames con la configuración adecuada
         """
         video_config = self.picam2.create_video_configuration(
-            main={"size": (1280, 720), "format": "RGB888"},
-            controls={
-                "AeEnable": True,
-                "AwbEnable": True,
-                "Brightness": 0.0,
-                "Contrast": 1.0,
-                "Sharpness": 1.0,
-                "Saturation": 1.0
-            }
+            main=config["main"],
+            controls=config["controls"]
         )
         self.picam2.configure(video_config)
 
@@ -138,11 +178,15 @@ class CAMARA_HQ:
             - No retorna nada, pero mantiene self.diametro_mm siempre con el último diámetro calculado a partir de la ROI del láser,
             y self.diametro_y1, self.diametro_y2 con las coordenadas verticales detectadas para poder pintarlas en la web.
         """
+        # Bucle de ejecución del hilo de medición.
         while self.running:
+            # Protección del acceso a self.frame_actual para evitar condiciones de carrera con el hilo de captura.
             with self.lock_frame:
                 if self.frame_actual is None:
                     roi = None
+
                 else:
+                    # Recortamos la ROI vertical alrededor de la línea láser. Nos aseguramos de no salirnos de los límites de la imagen.
                     _, w, _ = self.frame_actual.shape
                     x1 = self.x_laser - self.ancho_roi // 2
                     x2 = self.x_laser + self.ancho_roi // 2
@@ -159,11 +203,14 @@ class CAMARA_HQ:
                 time.sleep(0.001)
                 continue
 
+            # Calculo del diámetro a partir de la ROI del láser.
             resultado = self.__calculate_diameter_from_roi(roi)
 
             if resultado is not None:
                 diametro, y_inicio, y_fin = resultado
 
+                # Protección del acceso a self.diametro_mm, self.diametro_y1, self.diametro_y2 para evitar
+                # condiciones de carrera con el hilo web.
                 with self.lock_diametro:
                     self.diametro_mm = diametro
                     self.diametro_y1 = y_inicio
@@ -185,11 +232,15 @@ class CAMARA_HQ:
         Retorna:
             - No retorna nada, pero mantiene self.jpeg_actual siempre con el último JPEG preparado para la web.
         """
+        # Intervalo entre frames para la web según el FPS objetivo
+        # Ej: si web_fps=15, entonces intervalo=0.0666 segundos entre frames
         intervalo = 1.0 / self.web_fps
 
+        # Bucle de ejecución del hilo de preparación web
         while self.running:
             inicio = time.perf_counter()
 
+            # Protección del acceso a self.frame_actual para evitar condiciones de carrera con el hilo de captura.
             with self.lock_frame:
                 frame = self.frame_actual
 
@@ -199,8 +250,11 @@ class CAMARA_HQ:
 
             frame_web = frame
 
+            # Redimensionamos el frame para la web
             frame_web = cv2.resize(frame_web,(self.web_width, self.web_height),interpolation=cv2.INTER_AREA)
 
+            # Protección del acceso a self.diametro_mm, self.diametro_y1, self.diametro_y2 para evitar condiciones de carrera
+            # con el hilo de medición.
             with self.lock_diametro:
                 diametro = self.diametro_mm
                 diametro_y1 = self.diametro_y1
@@ -220,6 +274,7 @@ class CAMARA_HQ:
                     y1_diam_web = int(diametro_y1 * escala_y)
                     y2_diam_web = int(diametro_y2 * escala_y)
 
+                    # Línea vertical del láser
                     cv2.line(frame_web,(x_laser_web, y1_diam_web), (x_laser_web, y2_diam_web), (0, 255, 0), 4)
 
                     # Marcas superior e inferior del diámetro.
@@ -228,9 +283,11 @@ class CAMARA_HQ:
 
                 cv2.putText(frame_web, f"Diametro: {diametro:.2f} mm", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
+            # Codificamos el frame con los dibujos para la web en formato JPEG.
             ok, buffer = cv2.imencode(".jpg",frame_web,[cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
 
             if ok:
+                # Protección del acceso a self.jpeg_actual para evitar condiciones de carrera con el hilo de generación de frames web.
                 with self.lock_jpeg:
                     self.jpeg_actual = buffer.tobytes()
 
@@ -251,7 +308,9 @@ class CAMARA_HQ:
         Retorna:
             - Retorna un generador que produce los frames JPEG formateados para el streaming web
         """
+        # Bucle de generación de frames para la web
         while True:
+            # Protección del acceso a self.jpeg_actual para evitar condiciones de carrera con el hilo de preparación web.
             with self.lock_jpeg:
                 jpeg = self.jpeg_actual
 
@@ -280,35 +339,32 @@ class CAMARA_HQ:
         Retorna:
             - Retorna una tupla (diametro_mm, y_inicio, y_fin) donde diametro_mm es el diámetro calculado en mm, y y_inicio, y_fin son las coordenadas verticales detectadas del filamento para poder dibujarlas en la web. Si no se detecta un diámetro válido, retorna None.
         """
-        # En tu caso el rojo se veía azul al mostrarlo, por eso tratamos el frame como BGR:
-        # canal 2 = rojo, canal 1 = verde, canal 0 = azul.
+
         r = roi[:, :, 2].astype(np.int16)
         g = roi[:, :, 1].astype(np.int16)
         b = roi[:, :, 0].astype(np.int16)
 
-        mascara_rojo = (
-            (r > 120) &
-            (r > g + 40) &
-            (r > b + 40)
-        )
+        # Máscara para detectar píxeles rojos
+        mascara_rojo = ((r > 120) & (r > g + 40) & (r > b + 40))
 
-        # Cantidad de píxeles rojos por fila.
+        # Sumamos la cantidad de píxeles rojos en cada fila de la ROI.
         suma_rojo = mascara_rojo.sum(axis=1)
 
-        # Una fila se considera con láser si tiene suficientes píxeles rojos.
+        # Si la suma de rojo en una fila supera el umbral, consideramos que esa fila tiene rojo
         umbral_rojo_fila = 2
         filas_con_rojo = suma_rojo >= umbral_rojo_fila
 
+        # Si medir_rojo es True, buscamos la mayor secuencia de filas con rojo. Si es False, buscamos la mayor secuencia de filas sin rojo.
         if medir_rojo:
             filas_a_medir = filas_con_rojo
         else:
-            # Para medir la sombra/interrupción del láser.
             filas_a_medir = ~filas_con_rojo
 
         mejor_inicio = None
         mejor_fin = None
         inicio_actual = None
 
+        # Iteración para encontrar la mayor secuencia de filas válidas (con rojo o sin rojo según medir_rojo).
         for i, fila_valida in enumerate(filas_a_medir):
             if fila_valida:
                 if inicio_actual is None:
@@ -317,10 +373,7 @@ class CAMARA_HQ:
                 if inicio_actual is not None:
                     fin_actual = i - 1
 
-                    if (
-                        mejor_inicio is None or
-                        (fin_actual - inicio_actual) > (mejor_fin - mejor_inicio)
-                    ):
+                    if (mejor_inicio is None or (fin_actual - inicio_actual) > (mejor_fin - mejor_inicio)):
                         mejor_inicio = inicio_actual
                         mejor_fin = fin_actual
 
@@ -329,10 +382,7 @@ class CAMARA_HQ:
         if inicio_actual is not None:
             fin_actual = len(filas_a_medir) - 1
 
-            if (
-                mejor_inicio is None or
-                (fin_actual - inicio_actual) > (mejor_fin - mejor_inicio)
-            ):
+            if (mejor_inicio is None or (fin_actual - inicio_actual) > (mejor_fin - mejor_inicio)):
                 mejor_inicio = inicio_actual
                 mejor_fin = fin_actual
 
@@ -353,6 +403,14 @@ class CAMARA_HQ:
 
     # -----Envío del diámetro al microcontrolador-----#
     def __send_diameter(self, diametro_mm):
+        """
+        Descripción:
+            Imprime el diámetro calculado si verbose es True.
+        Parametros:
+            - diametro_mm: El diámetro calculado en mm que se desea imprimir.
+        Retorna:
+            - No retorna nada, pero si verbose es True, imprime el diámetro calculado en mm
+        """
         if not self.verbose:
             return
         print(f"Diametro: {diametro_mm:.2f} mm")
@@ -360,6 +418,14 @@ class CAMARA_HQ:
 
     # -----Parar cámara e hilos-----#
     def stop(self):
+        """
+        Descripción:
+            Detiene la cámara y los hilos de captura, medición y preparación web.
+        Parametros:
+            - No recibe parámetros, pero detiene la cámara y los hilos de captura, medición y preparación web.
+        Retorna:
+            - No retorna nada, pero deja la cámara y los hilos detenidos.
+        """
         self.running = False
         time.sleep(0.1)
 

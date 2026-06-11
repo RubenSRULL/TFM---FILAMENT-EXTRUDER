@@ -1,7 +1,16 @@
-# source myenv/bin/activate
-# ip link show can0
-# sudo ip link set can0 down
-# sudo ip link set can0 up type can bitrate 500000
+# Autor: Rubén Sahuquillo Redondo
+
+# Descripción:
+# - Este script es el punto de entrada principal para la aplicación de monitoreo y control del proceso de extrusión de filamento.
+#   Utiliza Dash para crear una interfaz web interactiva que permite visualizar datos en tiempo real, controlar parámetros del proceso
+#   y gestionar diferentes fases de operación.
+
+# Flujo del programa:
+# 1. Se importan los módulos necesarios, incluyendo Dash, componentes de la interfaz, y clases para manejar la cámara, comunicación CAN y el láser.
+# 2. Se crean instancias de los objetos principales: la aplicación Dash, la cámara, el láser y la comunicación CAN.
+# 3. Se definen variables para almacenar datos históricos de diámetro, velocidad, temperatura, etc.
+# 4. Se definen funciones para crear gráficos, layouts y componentes de la interfaz.
+# 5. Se establecen callbacks para actualizar la interfaz en función de las interacciones del usuario y los datos recibidos.
 
 
 #------------------#
@@ -9,7 +18,7 @@
 #------------------#
 from dash import Dash, html, dcc, callback, Output, Input, State, ctx, no_update
 from datetime import datetime
-from flask import Flask, Response
+from flask import Response
 from src.backend.CAMARA_HQ import CAMARA_HQ
 from src.backend.CAN_COM import CAN_COM
 from gpiozero import LED
@@ -45,7 +54,7 @@ tiempos = []
 #--------------------#
 #---- Funciones -----#
 #--------------------#
-# Función para crear figuras de líneas para Plotly
+# ::::: Función para crear figuras de líneas para Plotly ::::: #
 def crear_figura_lineas(titulo, x_label, y_label, series):
     """
     Descripción:
@@ -93,7 +102,7 @@ def crear_figura_lineas(titulo, x_label, y_label, series):
     }
 
 
-# Función para crear el layout de monitoreo
+# ::::: Función para crear el layout de monitoreo :::::
 def monitoreo():
     """
     Descripción:
@@ -173,7 +182,7 @@ FASES_AUTOMATICAS = [
 ]
 
 
-# Función para crear los indicadores de fases automáticas
+# ::::: Función para crear los indicadores de fases automáticas :::::
 def crear_indicadores_fases(fase_activa):
     """
     Descripción:
@@ -220,7 +229,7 @@ def crear_indicadores_fases(fase_activa):
     return indicadores
 
 
-# Función para crear el contenido de cada fase automática
+# ::::: Función para crear el contenido de cada fase automática :::::
 def crear_contenido_fase_automatica(fase_activa):
     """
     Descripción:
@@ -355,7 +364,7 @@ def crear_contenido_fase_automatica(fase_activa):
         className='contenedor_fase_auto',
     )
 
-# Función para crear el layout de automático
+# ::::: Función para crear el layout de automático :::::
 def automatico():
     """
     Descripción:
@@ -406,7 +415,7 @@ def automatico():
     )
 
 
-# Función para crear el layout de manual
+# ::::: Función para crear el layout de manual :::::
 def manual():
     """
     Descripción:
@@ -536,6 +545,7 @@ def manual():
 #----------------------------#
 # --- Layouts y Callbacks ---#
 # ---------------------------#
+# ::::: Layout principal de la aplicación ::::: #
 app.layout = html.Div([
     html.Div([
         html.Div(
@@ -641,7 +651,7 @@ app.layout = html.Div([
 className='contenedor_principal')
 
 
-# Callback para actualizar el display de diámetro y el gráfico en tiempo real
+# ::::: Callback para actualizar el display de diámetro y el gráfico en tiempo real ::::: #
 @app.callback(
     Output("diametro-display", "children"),
     Output("grafico-diametro", "figure"),
@@ -672,7 +682,15 @@ def actualizar_diametro_display(n):
     return f"{valor_diametro:.2f}", figura
 
 
-# CALLBACK FASES AUTOMÁTICAS
+# ::::: Callback para actualizar el display de temperatura y humedad y el gráfico en tiempo real ::::: #
+
+
+
+# ::::: Callback para actualizar el display de velocidades y el gráfico en tiempo real ::::: #
+
+
+
+# ::::: Callback para cambiar la fase automática ::::: #
 @callback(
     Output('store-fase-automatica', 'data'),
     Input('btn-fase-anterior', 'n_clicks'),
@@ -719,7 +737,7 @@ def actualizar_fase_automatica(fase_activa):
     )
 
 
-# CALLBACK MENU LATERAL
+# ::::: Callback para actualizar la interfaz según la sección seleccionada ::::: #
 @callback(
     Output('seccion-monitoreo', 'style'),
     Output('seccion-automatico', 'style'),
@@ -774,7 +792,7 @@ def actualizar_interfaz(n1, n2, n3, logs_actuales):
     return estilos[0], estilos[1], estilos[2], logs_actuales
 
 
-# CALLBACK BOTONES MANUAL
+# ::::: Callback para los botones de control manual ::::: #
 @callback(
     Output('log-sistema', 'children', allow_duplicate=True),
     Output('calefactor-estado', 'children', allow_duplicate=True),
@@ -911,7 +929,7 @@ def botones_manual(n_on1, n_off1, n_on2, n_off2, n_on3, n_off3, n_on4, n_off4, s
     return logs_actuales, calefactor_estado, motor_extrusora_estado, motor_enrolladora_estado, laser_estado
 
 
-# Función para alimentar el video en tiempo real
+# ::::: Función para alimentar el video en tiempo real ::::: #
 @server.route('/video_feed')
 def video_feed():
     return Response(
@@ -920,7 +938,7 @@ def video_feed():
     )
 
 
-# Callback para parada de emergencia: apaga todo y actualiza estados
+# ::::: Callback para parada de emergencia: apaga todo y actualiza estados ::::: #
 @app.callback(
     Output('log-sistema', 'children', allow_duplicate=True),
     Output('calefactor-estado', 'children', allow_duplicate=True),
@@ -964,5 +982,8 @@ def parada_emergencia(n_clicks, logs_actuales):
     return logs_actuales, calefactor_estado, motor_extrusora_estado, motor_enrolladora_estado, laser_estado
 
 
+# ----------------------------------#
+# --- Ejecución de la aplicación ---#
+# ----------------------------------#
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
